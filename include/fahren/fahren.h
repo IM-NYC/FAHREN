@@ -36,65 +36,62 @@
 extern "C" {
 #endif
 
+#include <stdio.h> /* for fprintf in FAHREN_THROW */
+#include <stdlib.h> /* for abort in FAHREN_THROW */
+
+/* Verbosity control: redefine to 0 to disable verbose output */
+#ifndef FAHREN_VERBOSE
+#define FAHREN_VERBOSE 1
+#endif
+
 /* Version */
-#define FAHREN_VERSION_MAJOR 1
-#define FAHREN_VERSION_MINOR 0
-#define FAHREN_VERSION_PATCH 0
+#define FAHREN_VERSION_MAJOR                1
+#define FAHREN_VERSION_MINOR                0
+#define FAHREN_VERSION_PATCH                0
+/* Status codes */
+#define FAHREN_SUCCESS                      0
+#define FAHREN_ERROR_INVALID_ARGUMENT       1
+#define FAHREN_ERROR_NOT_INITIALIZED        2
+#define FAHREN_ERROR_PROCESSING_FAILED      3
 
-/* Simple status codes */
-typedef enum FAHRENStatus {
-    FAHREN_SUCCESS = 0,
-    FAHREN_ERROR_INVALID_ARGUMENT = 1,
-    FAHREN_ERROR_NOT_INITIALIZED = 2,
-    FAHREN_ERROR_PROCESSING_FAILED = 3
-} FAHRENStatus;
+#define FAHREN_MODEL_SEQUENTIAL             0
+#define FAHREN_MODEL_LSTM                   1
 
-/* A minimal model type enum: we only need a placeholder for now. */
-typedef enum FAHRENModelType {
-    FAHREN_MODEL_SEQUENTIAL = 0
-} FAHRENModelType;
+#define FAHREN_LAYER_DENSE                  0
+#define FAHREN_LAYER_CONVOLUTIONAL          1
+#define FAHREN_LAYER_POOLING                2
+#define FAHREN_LAYER_SUBMODEL               3
 
-/* Layer kinds supported by the tiny API. */
-typedef enum FAHRENLayerType {
-    FAHREN_LAYER_DENSE = 0,
-    FAHREN_LAYER_CONVOLUTIONAL = 1
-} FAHRENLayerType;
+#define FAHREN_LAYER_ACTIVATION_RELU        0
+#define FAHREN_LAYER_ACTIVATION_SIGMOID     1
+#define FAHREN_LAYER_ACTIVATION_TANH        2
+#define FAHREN_LAYER_ACTIVATION_SOFTMAX     3
+
+/* Opaque model instance held by library users; keep fields minimal. */
+typedef struct FAHRENModel FAHRENModel;
 
 /* A very small layer descriptor. The user only needs to set `density` and
  * `previous_layer` when building simple sequential models in examples. */
 typedef struct FAHRENLayer {
     int density;               /* number of neurons / filters */
+    int layer_type;           /* FAHREN_LAYER_DENSE, etc. */
     struct FAHRENLayer* previous_layer; /* pointer to previous layer or NULL */
-    FAHRENLayerType layer_type;/* kind of layer */
+    FAHRENModel* sub_model;      /* for nested models, if any */
+    int param1;                /* kernel_size for CONV, pool_size for POOLING */
+    int param2;                /* stride for CONV/POOLING */
 } FAHRENLayer;
-
-/* Opaque model instance held by library users; keep fields minimal. */
-typedef struct FAHREN {
-    int initialized;
-    size_t layer_count;
-    FAHRENModelType model_type;
-    FAHRENLayer* layers;
-} FAHREN;
 
 /* Public API: simple and self-explanatory names. Signatures are intentionally
  * small so users can easily call them from examples. */
 
-/* Allocate `count` zero-initialized FAHRENLayer entries. Free with `free()`.
- * This avoids callers needing to cast `calloc` results in C. */
-FAHRENLayer* fahren_alloc_layers(size_t count);
-
-/* Initialize a model instance. Pass a pointer to a FAHREN struct (it will be
- * populated) and a preallocated array of `layer_count` layers. */
-FAHRENStatus fahren_init(FAHREN* cm, FAHRENModelType model_type, size_t layer_count, FAHRENLayer* layers);
+/* Initialize a model instance. Pass a model type and layer count, returns a pointer to the model. */
+FAHRENModel* fahren_create_model(int model_type, int layer_count);
 
 /* Shutdown and free resources associated with a model. */
-FAHRENStatus fahren_shutdown(FAHREN* cm);
+void fahren_shutdown(FAHRENModel* cm);
 
-/* Note: text-processing and small training/prediction helpers were removed
- * to keep the public API minimal and easy to understand. Implementations
- * are intentionally small and focused; model serialization (`fahren_write_random_weights`)
- * is still supported via the implementation.
- */
+/* Add a layer to the model. */
+void fahren_add_layer(FAHRENModel* cm, int layer_type, ...);
 
 #ifdef __cplusplus
 }
