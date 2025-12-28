@@ -10,6 +10,8 @@ set(FAHREN_SOURCES)
 if(UNIX)
     message(STATUS "Adding POSIX sources")
     list(APPEND FAHREN_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/posix.c)
+    list(APPEND FAHREN_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/init.c)
+    list(APPEND FAHREN_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/train.c)
 endif()
 
 if(WIN32)

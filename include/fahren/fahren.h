@@ -70,17 +70,6 @@ extern "C" {
 /* Opaque model instance held by library users; keep fields minimal. */
 typedef struct FAHRENModel FAHRENModel;
 
-/* A very small layer descriptor. The user only needs to set `density` and
- * `previous_layer` when building simple sequential models in examples. */
-typedef struct FAHRENLayer {
-    int density;               /* number of neurons / filters */
-    int layer_type;           /* FAHREN_LAYER_DENSE, etc. */
-    struct FAHRENLayer* previous_layer; /* pointer to previous layer or NULL */
-    FAHRENModel* sub_model;      /* for nested models, if any */
-    int param1;                /* kernel_size for CONV, pool_size for POOLING */
-    int param2;                /* stride for CONV/POOLING */
-} FAHRENLayer;
-
 /* Public API: simple and self-explanatory names. Signatures are intentionally
  * small so users can easily call them from examples. */
 
@@ -92,6 +81,8 @@ void fahren_shutdown(FAHRENModel* cm);
 
 /* Add a layer to the model. */
 void fahren_add_layer(FAHRENModel* cm, int layer_type, ...);
+int fahren_finalize_model_to_file(FAHRENModel* cm, const char* filepath, int input_dim);
+int fahren_train(FAHRENModel* cm, const float* inputs, size_t sample_count, size_t input_dim, const int* labels, size_t num_classes, const char* weights_path, size_t epochs, float learning_rate);
 
 #ifdef __cplusplus
 }
