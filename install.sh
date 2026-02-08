@@ -415,7 +415,6 @@ main() {
 
     # Make train.sh executable
     chmod +x train.sh 2>/dev/null || true
-
     # Build project
     echo -e "${WARN}→${NC} Building FAHREN..."
     mkdir -p build

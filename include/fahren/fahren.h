@@ -105,7 +105,7 @@ FAHRENModel* fahren_create_model(int model_type, int layer_count);
 void fahren_shutdown(FAHRENModel* cm);
 
 /* Add a layer to the model. */
-void fahren_add_layer(FAHRENModel* cm, int layer_type, ...);
+void fahren_add_layer(FAHRENModel* cm, int layer_type, int activation, ...);
 int fahren_finalize_model_to_file(FAHRENModel* cm, const char* filepath, int input_dim);
 int fahren_train(FAHRENModel* cm, const float* inputs, size_t sample_count, size_t input_dim, const int* labels, size_t num_classes, const char* weights_path, size_t epochs, float learning_rate);
 
