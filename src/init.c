@@ -1,3 +1,20 @@
+/*
+ * FAHREN Model Initialization and Layer Management
+ * 
+ * This module handles:
+ * - Model creation and configuration
+ * - Layer addition and parameter tracking
+ * - Model finalization with random weight initialization
+ * - Binary file I/O for weight persistence
+ * - Memory management and cleanup
+ * 
+ * The module uses a file-based weight storage approach:
+ * 1. Model finalization writes all layer parameters to a binary file
+ * 2. Weights are initialized with Xavier/Glorot uniform distribution
+ * 3. Training loads and updates weights from this file
+ * 4. File format includes header (magic, version, metadata) + per-layer data
+ */
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -38,7 +55,7 @@ static int read_header(FILE* f, FahrenFileHeader* out) {
 }
 
 /* Public API: add layer with activation */
-void fahren_add_layer(FAHRENModel* cm, int layer_type, int activation, ...) {
+void fahren_add_layer(FAHRENModel* cm, int layer_type, ...) {
     if (!cm || cm->current_layer >= cm->layer_count) {
         #if FAHREN_VERBOSE
         fprintf(stderr, "FAHREN ERROR: Failed to add layer due to invalid layer count or model pointer\n");
@@ -48,7 +65,9 @@ void fahren_add_layer(FAHRENModel* cm, int layer_type, int activation, ...) {
 
     size_t idx = cm->current_layer;
     va_list args;
-    va_start(args, activation);
+    va_start(args, layer_type);
+    
+    int activation = va_arg(args, int);
 
     FAHRENModel* sub_model = NULL;
     int density = 0;

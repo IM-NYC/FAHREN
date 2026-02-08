@@ -1,3 +1,34 @@
+/*
+ * FAHREN Training Engine
+ * 
+ * This module implements the core training algorithm for neural networks:
+ * - Forward pass: compute predictions through sequential layers
+ * - Loss computation: cross-entropy for classification tasks
+ * - Backward pass: backpropagation to compute gradients
+ * - Parameter updates: gradient descent optimization
+ * - Activation functions: ReLU, Sigmoid, Tanh, Softmax
+ * 
+ * TRAINING FLOW:
+ * 1. Load model weights from file
+ * 2. For each epoch:
+ *    a. For each training sample:
+ *       - Forward pass: compute layer-by-layer activations
+ *       - Compute loss: cross-entropy of predicted vs true class
+ *       - Backward pass: compute gradients w.r.t. all parameters
+ *       - Update: apply gradient descent to weights and biases
+ *    b. Save updated weights to file
+ * 3. Return final loss/accuracy metrics
+ * 
+ * OPTIMIZATION:
+ * - Currently uses vanilla SGD (stochastic gradient descent)
+ * - Learning rate: constant throughout training (no scheduling)
+ * - Future: Adam, RMSprop, momentum variants
+ * 
+ * NUMERICAL CONSIDERATIONS:
+ * - Xavier/Glorot initialization for stable training
+ * - Small learning rate (0.01) to avoid instability
+ * - Cross-entropy loss for probabilistic outputs
+ */
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -8,7 +39,12 @@
 
 #include "internal.h"
 
-/* Activation functions */
+/* ============================================================================
+ * ACTIVATION FUNCTIONS
+ * ============================================================================
+ * 
+ * Forward pass kernels for each activation type
+ */
 static inline float act_forward(int act, float x) {
     switch (act) {
         case FAHREN_LAYER_ACTIVATION_RELU: return x > 0.0f ? x : 0.0f;
@@ -18,6 +54,10 @@ static inline float act_forward(int act, float x) {
         default: return x;
     }
 }
+
+/* Activation function derivatives w.r.t. output
+ * Used in backward pass chain rule: d_loss/d_input = d_loss/d_output * d_output/d_input
+ */
 static inline float act_backward(int act, float y /* output of act */) {
     switch (act) {
         case FAHREN_LAYER_ACTIVATION_RELU: return (y > 0.0f) ? 1.0f : 0.0f;
@@ -27,6 +67,7 @@ static inline float act_backward(int act, float y /* output of act */) {
         default: return 1.0f;
     }
 }
+
 
 /* Read/write helpers */
 static int read_weights(FILE* f, long offset, float* dst, size_t n) {
