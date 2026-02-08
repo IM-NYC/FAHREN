@@ -480,15 +480,15 @@ main() {
     if ! command -v fahren &>/dev/null; then
         echo -e "${WARN}→${NC} ${INFO}fahren${NC} command not found in current shell (PATH not updated yet)"
         echo ""
-        echo -e "To use immediately in this shell:"
+        echo -e "To use immediately in this shell, run one of:"
+        if [[ "${SHELL##*/}" == "zsh" ]]; then
+            echo -e "  ${INFO}source ~/.zshrc && fahren${NC}"
+        else
+            echo -e "  ${INFO}source ~/.bashrc && fahren${NC}"
+        fi
         echo -e "  ${INFO}export PATH=\"\$HOME/.local/bin:\$PATH\" && fahren${NC}"
         echo ""
-        echo -e "To use in all new terminals:"
-        if [[ "${SHELL##*/}" == "zsh" ]]; then
-            echo -e "  New shells will work automatically (PATH added to ~/.zshrc)"
-        else
-            echo -e "  New shells will work automatically (PATH added to ~/.bashrc)"
-        fi
+        echo -e "To use in all new terminals: just restart your terminal (PATH already configured)"
     fi
 
     echo ""
