@@ -434,10 +434,15 @@ main() {
     # Setup symlink and PATH
     ensure_user_local_bin_on_path
     
-    if [[ ! -L "$HOME/.local/bin/fahren" ]]; then
-        mkdir -p "$HOME/.local/bin"
-        ln -sf "$INSTALL_DIR/train.sh" "$HOME/.local/bin/fahren"
+    mkdir -p "$HOME/.local/bin"
+    # Remove any existing fahren entry (file, broken symlink, etc.)
+    rm -f "$HOME/.local/bin/fahren"
+    # Create fresh symlink
+    if ln -s "$INSTALL_DIR/train.sh" "$HOME/.local/bin/fahren" 2>/dev/null; then
         echo -e "${SUCCESS}✓${NC} Symlink created: \$HOME/.local/bin/fahren"
+    else
+        echo -e "${ERROR}✗${NC} Failed to create symlink at \$HOME/.local/bin/fahren"
+        exit 1
     fi
 
     refresh_shell_command_cache
@@ -476,6 +481,12 @@ main() {
     echo -e "Installation directory: ${INFO}${INSTALL_DIR}${NC}"
     echo -e "Symlink: ${INFO}\$HOME/.local/bin/fahren${NC}"
     echo ""
+
+    # Verify symlink exists and is valid
+    if [[ ! -L "$HOME/.local/bin/fahren" ]]; then
+        echo -e "${ERROR}✗${NC} Symlink not found at \$HOME/.local/bin/fahren"
+        exit 1
+    fi
     
     if ! command -v fahren &>/dev/null; then
         echo -e "${WARN}→${NC} ${INFO}fahren${NC} command not found in current shell (PATH not updated yet)"
