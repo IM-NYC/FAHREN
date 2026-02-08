@@ -441,7 +441,6 @@ main() {
     fi
 
     refresh_shell_command_cache
-    warn_shell_path_missing_dir "$HOME/.local/bin" "user-local bin dir (~/.local/bin)"
 
     # Success message
     echo ""
@@ -479,10 +478,17 @@ main() {
     echo ""
     
     if ! command -v fahren &>/dev/null; then
-        echo -e "${WARN}→${NC} ${INFO}fahren${NC} command not found in current shell"
-        warn_shell_path_missing_dir "$HOME/.local/bin" "user-local bin"
-        echo -e "To use immediately: ${INFO}export PATH=\"\$HOME/.local/bin:\$PATH\"${NC}"
-        echo -e "To use in new terminals: Edit ${INFO}~/.bashrc${NC} or ${INFO}~/.zshrc${NC}"
+        echo -e "${WARN}→${NC} ${INFO}fahren${NC} command not found in current shell (PATH not updated yet)"
+        echo ""
+        echo -e "To use immediately in this shell:"
+        echo -e "  ${INFO}export PATH=\"\$HOME/.local/bin:\$PATH\" && fahren${NC}"
+        echo ""
+        echo -e "To use in all new terminals:"
+        if [[ "${SHELL##*/}" == "zsh" ]]; then
+            echo -e "  New shells will work automatically (PATH added to ~/.zshrc)"
+        else
+            echo -e "  New shells will work automatically (PATH added to ~/.bashrc)"
+        fi
     fi
 
     echo ""
