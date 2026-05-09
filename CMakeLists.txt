@@ -24,7 +24,16 @@ find_package(Threads REQUIRED)
 target_link_libraries(${PROJECT_NAME} PRIVATE Threads::Threads)
 
 # Test executable
-add_executable(${PROJECT_NAME}_test test/test.c)
+if(EXISTS ${CMAKE_SOURCE_DIR}/test/test.c)
+    add_executable(${PROJECT_NAME}_test test/test.c)
+    target_link_libraries(${PROJECT_NAME}_test PRIVATE ${PROJECT_NAME})
+
+    add_custom_target(run_test
+        COMMAND ${PROJECT_NAME}_test
+        DEPENDS ${PROJECT_NAME}_test
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    )
+endif()
 target_link_libraries(${PROJECT_NAME}_test PRIVATE ${PROJECT_NAME})
 
 # Test target
