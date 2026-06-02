@@ -1,0 +1,5 @@
+if(EXISTS "${CMAKE_SOURCE_DIR}/addons/CMakeLists.txt")
+    add_subdirectory(${CMAKE_SOURCE_DIR}/addons)
+else()
+    message(STATUS "FAHREN: add-ons directory not found")
+endif()

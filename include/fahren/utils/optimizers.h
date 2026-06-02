@@ -38,21 +38,18 @@ typedef struct {
     float decay;        /* decay rate for historical gradients */
 } FAHRENOptimizer;
 
-/* Create optimizer with default parameters */
+typedef struct FAHRENOptimizerState FAHRENOptimizerState;
+
 FAHRENOptimizer fahren_optimizer_create(FAHRENOptimizerType type, float lr);
 
-/* Update parameters using optimizer
- * 
- * Parameters:
- *  - optimizer: optimizer configuration
- *  - params: parameter vector to update
- *  - gradients: gradient vector
- *  - count: number of parameters
- *  - iteration: current iteration (for learning rate scheduling)
- */
+FAHRENOptimizerState* fahren_optimizer_state_create(const FAHRENOptimizer* optimizer,
+                                                    size_t param_count);
+void fahren_optimizer_state_free(FAHRENOptimizerState* state);
+
 void fahren_optimizer_update(FAHRENOptimizer* optimizer,
-                            float* params, const float* gradients,
-                            size_t count, size_t iteration);
+                             FAHRENOptimizerState* state,
+                             float* params, const float* gradients,
+                             size_t count, size_t iteration);
 
 #ifdef __cplusplus
 }

@@ -1,88 +1,52 @@
-/*
- * FAHREN Training Engine
- * 
- * This module implements the core training algorithm for neural networks:
- * - Forward pass: compute predictions through sequential layers
- * - Loss computation: cross-entropy for classification tasks
- * - Backward pass: backpropagation to compute gradients
- * - Parameter updates: gradient descent optimization
- * - Activation functions: ReLU, Sigmoid, Tanh, Softmax
- * 
- * TRAINING FLOW:
- * 1. Load model weights from file
- * 2. For each epoch:
- *    a. For each training sample:
- *       - Forward pass: compute layer-by-layer activations
- *       - Compute loss: cross-entropy of predicted vs true class
- *       - Backward pass: compute gradients w.r.t. all parameters
- *       - Update: apply gradient descent to weights and biases
- *    b. Save updated weights to file
- * 3. Return final loss/accuracy metrics
- * 
- * OPTIMIZATION:
- * - Currently uses vanilla SGD (stochastic gradient descent)
- * - Learning rate: constant throughout training (no scheduling)
- * - Future: Adam, RMSprop, momentum variants
- * 
- * NUMERICAL CONSIDERATIONS:
- * - Xavier/Glorot initialization for stable training
- * - Small learning rate (0.01) to avoid instability
- * - Cross-entropy loss for probabilistic outputs
- */
-
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
 #include <string.h>
 #include <math.h>
 #include <errno.h>
 
+#include <fahren/errors.h>
 #include "internal.h"
 
-/* ============================================================================
- * ACTIVATION FUNCTIONS
- * ============================================================================
- * 
- * Forward pass kernels for each activation type
- */
 static inline float act_forward(int act, float x) {
     switch (act) {
         case FAHREN_LAYER_ACTIVATION_RELU: return x > 0.0f ? x : 0.0f;
         case FAHREN_LAYER_ACTIVATION_SIGMOID: return 1.0f / (1.0f + expf(-x));
         case FAHREN_LAYER_ACTIVATION_TANH: return tanhf(x);
-        case FAHREN_LAYER_ACTIVATION_SOFTMAX: /* handled separately */ return x;
         default: return x;
     }
 }
 
-/* Activation function derivatives w.r.t. output
- * Used in backward pass chain rule: d_loss/d_input = d_loss/d_output * d_output/d_input
- */
-static inline float act_backward(int act, float y /* output of act */) {
+static inline float act_backward(int act, float y) {
     switch (act) {
         case FAHREN_LAYER_ACTIVATION_RELU: return (y > 0.0f) ? 1.0f : 0.0f;
         case FAHREN_LAYER_ACTIVATION_SIGMOID: return y * (1.0f - y);
         case FAHREN_LAYER_ACTIVATION_TANH: return 1.0f - y * y;
-        case FAHREN_LAYER_ACTIVATION_SOFTMAX: return 1.0f; /* use cross-entropy simplification */
         default: return 1.0f;
     }
 }
 
-
-/* Read/write helpers */
-static int read_weights(FILE* f, long offset, float* dst, size_t n) {
-    if (fseek(f, offset, SEEK_SET) != 0) return -1;
-    return (fread(dst, sizeof(float), n, f) == n) ? 0 : -1;
-}
-static int write_weights(FILE* f, long offset, const float* src, size_t n) {
-    if (fseek(f, offset, SEEK_SET) != 0) return -1;
-    return (fwrite(src, sizeof(float), n, f) == n) ? 0 : -1;
+static void apply_softmax(float* logits, size_t n) {
+    float maxv = logits[0];
+    for (size_t i = 1; i < n; ++i) if (logits[i] > maxv) maxv = logits[i];
+    float sum = 0.0f;
+    for (size_t i = 0; i < n; ++i) { logits[i] = expf(logits[i] - maxv); sum += logits[i]; }
+    for (size_t i = 0; i < n; ++i) logits[i] /= sum;
 }
 
-/* Forward pass for a single sample */
-static int forward_sample(FAHRENModel* cm, FILE* f, const float* x,
-                          float*** layer_outputs, size_t* layer_out_sizes) {
+void fahren_zero_layer_grads(struct FAHRENModel* cm) {
+    FAHRENWeightCache* cache = cm->cache;
     size_t L = cm->layer_count;
+    for (size_t i = 0; i < L; ++i) {
+        memset(cache->layers[i].grad_weights, 0, cache->layers[i].weight_count * sizeof(float));
+        memset(cache->layers[i].grad_biases, 0, cache->layers[i].bias_count * sizeof(float));
+    }
+}
+
+int fahren_forward_cached(FAHRENModel* cm, const float* x,
+                                 float*** layer_outputs, size_t* layer_out_sizes) {
+    size_t L = cm->layer_count;
+    FAHRENWeightCache* cache = cm->cache;
+
     *layer_outputs = (float**)calloc(L + 1, sizeof(float*));
     if (!*layer_outputs) return -1;
 
@@ -91,192 +55,363 @@ static int forward_sample(FAHRENModel* cm, FILE* f, const float* x,
     memcpy((*layer_outputs)[0], x, cm->input_dim * sizeof(float));
     layer_out_sizes[0] = cm->input_dim;
 
+    float* preact = (float*)malloc(cm->layers[0].output_size * sizeof(float));
+    if (!preact) return -1;
+
     for (size_t i = 0; i < L; ++i) {
         FAHRENLayer* layer = &cm->layers[i];
+        FAHRENLayerParams* P = &cache->layers[i];
         size_t in = layer->input_size;
         size_t out = layer->output_size;
-
         float* prev = (*layer_outputs)[i];
-        float* cur = (float*)calloc(out, sizeof(float));
-        if (!cur) return -1;
 
-        /* Read weights and biases */
-        size_t wcount = in * out;
-        float* W = (float*)malloc(wcount * sizeof(float));
-        float* b = (float*)malloc(out * sizeof(float));
-        if (!W || !b) return -1;
-        if (read_weights(f, layer->weights_offset, W, wcount) != 0) return -1;
-        if (read_weights(f, layer->bias_offset, b, out) != 0) return -1;
-
-        /* y = act(W * x + b) */
+        fahren_gemm(0, 0, out, 1, in, 1.0f, P->weights, in, prev, 1, 0.0f, preact, 1);
         for (size_t o = 0; o < out; ++o) {
-            float sum = b[o];
-            const float* wrow = &W[o * in];
-            for (size_t ii = 0; ii < in; ++ii) sum += wrow[ii] * prev[ii];
-            cur[o] = act_forward(layer->activation, sum);
+            preact[o] += P->biases[o];
         }
 
-        free(W); free(b);
-        (*layer_outputs)[i+1] = cur;
-        layer_out_sizes[i+1] = out;
+        float* cur = (float*)malloc(out * sizeof(float));
+        if (!cur) return -1;
+
+        if (layer->activation == FAHREN_LAYER_ACTIVATION_SOFTMAX) {
+            memcpy(cur, preact, out * sizeof(float));
+        } else {
+            for (size_t o = 0; o < out; ++o) {
+                cur[o] = act_forward(layer->activation, preact[o]);
+            }
+        }
+
+        (*layer_outputs)[i + 1] = cur;
+        layer_out_sizes[i + 1] = out;
     }
 
-    /* Softmax on last layer if requested */
-    FAHRENLayer* last = &cm->layers[L-1];
+    free(preact);
+
+    FAHRENLayer* last = &cm->layers[L - 1];
     if (last->activation == FAHREN_LAYER_ACTIVATION_SOFTMAX) {
-        float* logits = (*layer_outputs)[L];
-        size_t n = layer_out_sizes[L];
-        float maxv = logits[0];
-        for (size_t i = 1; i < n; ++i) if (logits[i] > maxv) maxv = logits[i];
-        float sum = 0.0f;
-        for (size_t i = 0; i < n; ++i) { logits[i] = expf(logits[i] - maxv); sum += logits[i]; }
-        for (size_t i = 0; i < n; ++i) logits[i] /= sum;
+        apply_softmax((*layer_outputs)[L], layer_out_sizes[L]);
     }
 
     return 0;
 }
 
-static void free_layer_outputs(float** outs, size_t L) {
+void fahren_free_layer_outputs(float** outs, size_t L) {
     if (!outs) return;
     for (size_t i = 0; i <= L; ++i) free(outs[i]);
     free(outs);
 }
 
-/* Backward + update for a single (x, label). Cross-entropy loss. */
-static int backward_update(FAHRENModel* cm, FILE* f, float** layer_outputs,
-                           size_t* layer_out_sizes, int label, float lr) {
+int fahren_backward_accumulate(FAHRENModel* cm, float** layer_outputs, size_t* layer_out_sizes,
+                               int label) {
     size_t L = cm->layer_count;
+    FAHRENWeightCache* cache = cm->cache;
 
-    /* Allocate deltas per layer output */
     float** deltas = (float**)calloc(L, sizeof(float*));
     if (!deltas) return -1;
 
-    /* Output delta: softmax + CE => y - onehot(label) */
     size_t outn = layer_out_sizes[L];
-    deltas[L-1] = (float*)calloc(outn, sizeof(float));
-    if (!deltas[L-1]) return -1;
+    deltas[L - 1] = (float*)malloc(outn * sizeof(float));
+    if (!deltas[L - 1]) { free(deltas); return -1; }
 
-    for (size_t i = 0; i < outn; ++i) deltas[L-1][i] = layer_outputs[L][i];
-    if (label >= 0 && (size_t)label < outn) deltas[L-1][label] -= 1.0f;
+    for (size_t i = 0; i < outn; ++i) deltas[L - 1][i] = layer_outputs[L][i];
+    if (label >= 0 && (size_t)label < outn) deltas[L - 1][label] -= 1.0f;
 
-    /* Backpropagate to earlier layers */
     for (size_t li = L - 1; li > 0; --li) {
         FAHRENLayer* layer = &cm->layers[li];
+        FAHRENLayerParams* P = &cache->layers[li];
         size_t in = layer->input_size;
         size_t out = layer->output_size;
-
         float* delta_next = deltas[li];
-        float* delta_cur = (float*)calloc(in, sizeof(float));
-        if (!delta_cur) return -1;
 
-        /* Read weights */
-        size_t wcount = in * out;
-        float* W = (float*)malloc(wcount * sizeof(float));
-        if (!W) return -1;
-        if (read_weights(f, layer->weights_offset, W, wcount) != 0) { free(W); return -1; }
-
-        /* delta_cur = (W^T * delta_next) * act'(preact) ; we approximate act'(y) using output y */
-        for (size_t i = 0; i < in; ++i) {
-            float sum = 0.0f;
-            for (size_t o = 0; o < out; ++o) sum += W[o * in + i] * delta_next[o];
-            float y = layer_outputs[li][i];
-            sum *= act_backward(cm->layers[li-1].activation, y); /* previous layer activation derivative */
-            delta_cur[i] = sum;
-        }
-        free(W);
-        deltas[li-1] = delta_cur;
-    }
-
-    /* Apply weight and bias updates */
-    for (size_t li = 0; li < L; ++li) {
-        FAHRENLayer* layer = &cm->layers[li];
-        size_t in = layer->input_size;
-        size_t out = layer->output_size;
-
-        float* prev = layer_outputs[li];
-        float* dY = deltas[li];
-
-        size_t wcount = in * out;
-        float* W = (float*)malloc(wcount * sizeof(float));
-        float* b = (float*)malloc(out * sizeof(float));
-        if (!W || !b) { free(W); free(b); return -1; }
-        if (read_weights(f, layer->weights_offset, W, wcount) != 0) { free(W); free(b); return -1; }
-        if (read_weights(f, layer->bias_offset, b, out) != 0) { free(W); free(b); return -1; }
-
-        /* Gradient step */
         for (size_t o = 0; o < out; ++o) {
-            float gbo = dY[o];
-            b[o] -= lr * gbo;
-            float* wrow = &W[o * in];
+            cache->layers[li].grad_biases[o] += delta_next[o];
+            const float* prev = layer_outputs[li];
+            float* wrow = &P->grad_weights[o * in];
             for (size_t ii = 0; ii < in; ++ii) {
-                wrow[ii] -= lr * gbo * prev[ii];
+                wrow[ii] += delta_next[o] * prev[ii];
             }
         }
 
-        if (write_weights(f, layer->weights_offset, W, wcount) != 0) { free(W); free(b); return -1; }
-        if (write_weights(f, layer->bias_offset, b, out) != 0) { free(W); free(b); return -1; }
-        free(W); free(b);
+        float* delta_cur = (float*)calloc(in, sizeof(float));
+        if (!delta_cur) {
+            for (size_t k = 0; k < L; ++k) free(deltas[k]);
+            free(deltas);
+            return -1;
+        }
+
+        for (size_t ii = 0; ii < in; ++ii) {
+            float sum = 0.0f;
+            for (size_t o = 0; o < out; ++o) {
+                sum += P->weights[o * in + ii] * delta_next[o];
+            }
+            float y = layer_outputs[li][ii];
+            sum *= act_backward(cm->layers[li - 1].activation, y);
+            delta_cur[ii] = sum;
+        }
+
+        deltas[li - 1] = delta_cur;
     }
 
-    for (size_t i = 0; i < L; ++i) free(deltas[i]);
+    {
+        size_t li = 0;
+        FAHRENLayer* layer = &cm->layers[li];
+        FAHRENLayerParams* P = &cache->layers[li];
+        size_t in = layer->input_size;
+        size_t out = layer->output_size;
+        float* delta_next = deltas[li];
+
+        for (size_t o = 0; o < out; ++o) {
+            P->grad_biases[o] += delta_next[o];
+            const float* prev = layer_outputs[li];
+            float* wrow = &P->grad_weights[o * in];
+            for (size_t ii = 0; ii < in; ++ii) {
+                wrow[ii] += delta_next[o] * prev[ii];
+            }
+        }
+    }
+
+    for (size_t k = 0; k < L; ++k) free(deltas[k]);
     free(deltas);
     return 0;
 }
 
-int fahren_train(FAHRENModel* cm,
-                 const float* inputs, size_t sample_count, size_t input_dim,
-                 const int* labels, size_t num_classes,
-                 const char* weights_path, size_t epochs, float learning_rate) {
-    if (!cm || !inputs || !labels || !weights_path) return FAHREN_ERROR_INVALID_ARGUMENT;
-    if (!cm->finalized) {
-        #if FAHREN_VERBOSE
-        fprintf(stderr, "FAHREN ERROR: Model must be finalized to a file before training.\n");
-        #endif
-        return FAHREN_ERROR_NOT_INITIALIZED;
+void fahren_ensure_optimizer_states(struct FAHRENModel* cm, const FAHRENOptimizer* opt) {
+    if (!opt) return;
+    for (size_t i = 0; i < cm->layer_count; ++i) {
+        FAHRENLayerParams* P = &cm->cache->layers[i];
+        if (!P->opt_state_w) {
+            P->opt_state_w = fahren_optimizer_state_create(opt, P->weight_count);
+        }
+        if (!P->opt_state_b) {
+            P->opt_state_b = fahren_optimizer_state_create(opt, P->bias_count);
+        }
     }
-    if (cm->input_dim != input_dim) {
-        #if FAHREN_VERBOSE
-        fprintf(stderr, "FAHREN ERROR: input_dim mismatch (model=%zu, arg=%zu)\n", cm->input_dim, input_dim);
-        #endif
+}
+
+void fahren_apply_layer_gradients(struct FAHRENModel* cm, const FAHRENTrainConfig* config,
+                            size_t batch_size, size_t iteration) {
+    float inv_batch = 1.0f / (float)batch_size;
+    FAHRENOptimizer* opt = config->optimizer;
+
+    for (size_t i = 0; i < cm->layer_count; ++i) {
+        FAHRENLayerParams* P = &cm->cache->layers[i];
+        size_t wc = P->weight_count;
+        size_t bc = P->bias_count;
+        size_t k;
+
+        for (k = 0; k < wc; ++k) P->grad_weights[k] *= inv_batch;
+        for (k = 0; k < bc; ++k) P->grad_biases[k] *= inv_batch;
+
+        if (opt) {
+            FAHRENOptimizer opt_mut = *opt;
+            fahren_optimizer_update(&opt_mut, P->opt_state_w, P->weights, P->grad_weights, wc, iteration);
+            fahren_optimizer_update(&opt_mut, P->opt_state_b, P->biases, P->grad_biases, bc, iteration);
+        } else {
+            float lr = config->learning_rate;
+            for (k = 0; k < wc; ++k) P->weights[k] -= lr * P->grad_weights[k];
+            for (k = 0; k < bc; ++k) P->biases[k] -= lr * P->grad_biases[k];
+        }
+    }
+    cm->cache->dirty = 1;
+}
+
+int fahren_train_cpu(struct FAHRENModel* cm, const float* inputs, size_t sample_count,
+                     size_t input_dim, const int* labels, size_t num_classes,
+                     const char* weights_path, size_t epochs,
+                     const FAHRENTrainConfig* config) {
+    (void)num_classes;
+    if (!cm || !inputs || !labels || !weights_path || !config) {
+        return FAHREN_ERROR_INVALID_ARGUMENT;
+    }
+    if (!cm->finalized || cm->input_dim != input_dim) {
         return FAHREN_ERROR_INVALID_ARGUMENT;
     }
 
-    FILE* f = fopen(weights_path, "rb+");
-    if (!f) {
-        #if FAHREN_VERBOSE
-        fprintf(stderr, "FAHREN ERROR: Could not open weights file '%s': %s\n", weights_path, strerror(errno));
-        #endif
+    int rc = fahren_weights_load(cm, weights_path);
+    if (rc != FAHREN_SUCCESS) return rc;
+
+    if (config->optimizer) {
+        fahren_ensure_optimizer_states(cm, config->optimizer);
+    }
+
+    size_t batch_size = config->batch_size ? config->batch_size : 32;
+    if (batch_size > sample_count) batch_size = sample_count;
+
+    size_t iteration = 0;
+
+    for (size_t e = 0; e < epochs; ++e) {
+        double epoch_loss = 0.0;
+
+        for (size_t batch_start = 0; batch_start < sample_count; batch_start += batch_size) {
+            size_t batch_end = batch_start + batch_size;
+            if (batch_end > sample_count) batch_end = sample_count;
+            size_t this_batch = batch_end - batch_start;
+
+            fahren_zero_layer_grads(cm);
+
+            for (size_t s = batch_start; s < batch_end; ++s) {
+                const float* x = &inputs[s * input_dim];
+                int y = labels[s];
+
+                float** layer_outputs = NULL;
+                size_t* layer_sizes = (size_t*)calloc(cm->layer_count + 1, sizeof(size_t));
+                if (!layer_sizes) return FAHREN_ERROR_OUT_OF_MEMORY;
+
+                if (fahren_forward_cached(cm, x, &layer_outputs, layer_sizes) != 0) {
+                    free(layer_sizes);
+                    return FAHREN_ERROR_PROCESSING_FAILED;
+                }
+
+                float py = 1e-9f;
+                if (y >= 0 && (size_t)y < layer_sizes[cm->layer_count]) {
+                    py = layer_outputs[cm->layer_count][y];
+                }
+                epoch_loss += -logf(py);
+
+                if (fahren_backward_accumulate(cm, layer_outputs, layer_sizes, y) != 0) {
+                    fahren_free_layer_outputs(layer_outputs, cm->layer_count);
+                    free(layer_sizes);
+                    return FAHREN_ERROR_PROCESSING_FAILED;
+                }
+
+                fahren_free_layer_outputs(layer_outputs, cm->layer_count);
+                free(layer_sizes);
+            }
+
+            fahren_apply_layer_gradients(cm, config, this_batch, iteration++);
+        }
+
+        rc = fahren_weights_flush(cm, weights_path);
+        if (rc != FAHREN_SUCCESS) return rc;
+
+#if FAHREN_VERBOSE
+        fprintf(stdout, "Epoch %zu/%zu - loss: %.6f\n", e + 1, epochs,
+                epoch_loss / (double)sample_count);
+#endif
+    }
+
+    return FAHREN_SUCCESS;
+}
+
+FAHRENTrainConfig fahren_train_config_default(float learning_rate) {
+    FAHRENTrainConfig cfg;
+    cfg.batch_size = 32;
+    cfg.learning_rate = learning_rate;
+    cfg.optimizer = NULL;
+    cfg.device = FAHREN_DEVICE_DEFAULT;
+    return cfg;
+}
+
+FAHRENTrainConfig fahren_train_config_cuda(float learning_rate) {
+    FAHRENTrainConfig cfg = fahren_train_config_default(learning_rate);
+    cfg.device = FAHREN_DEVICE_CUDA;
+    cfg.batch_size = 64;
+    return cfg;
+}
+
+static int train_dispatch(FAHRENModel* cm, const float* inputs, size_t sample_count,
+                          size_t input_dim, const int* labels, size_t num_classes,
+                          const char* weights_path, size_t epochs,
+                          const FAHRENTrainConfig* config) {
+    int device = fahren_train_resolve_device(config);
+
+    if (device == FAHREN_DEVICE_CUDA) {
+#ifdef FAHREN_ENABLE_CUDA
+        if (!fahren_cuda_available()) {
+            return FAHREN_ERROR_UNSUPPORTED;
+        }
+        return fahren_train_cuda(cm, inputs, sample_count, input_dim, labels, num_classes,
+                                 weights_path, epochs, config);
+#else
+        return FAHREN_ERROR_UNSUPPORTED;
+#endif
+    }
+
+    return fahren_train_cpu(cm, inputs, sample_count, input_dim, labels, num_classes,
+                            weights_path, epochs, config);
+}
+
+int fahren_train_with_config(FAHRENModel* cm, const float* inputs, size_t sample_count,
+                             size_t input_dim, const int* labels, size_t num_classes,
+                             const char* weights_path, size_t epochs,
+                             const FAHRENTrainConfig* config) {
+    if (!config) return FAHREN_ERROR_INVALID_ARGUMENT;
+    if (config->device == FAHREN_DEVICE_CUDA && !fahren_cuda_available()) {
+        return FAHREN_ERROR_UNSUPPORTED;
+    }
+    return train_dispatch(cm, inputs, sample_count, input_dim, labels, num_classes,
+                          weights_path, epochs, config);
+}
+
+int fahren_train(FAHRENModel* cm, const float* inputs, size_t sample_count, size_t input_dim,
+                 const int* labels, size_t num_classes, const char* weights_path,
+                 size_t epochs, float learning_rate) {
+    FAHRENTrainConfig cfg = fahren_train_config_default(learning_rate);
+    return fahren_train_with_config(cm, inputs, sample_count, input_dim, labels, num_classes,
+                                    weights_path, epochs, &cfg);
+}
+
+static int argmax_output(const float* out, size_t n, int* predicted_class) {
+    if (!out || !predicted_class || n == 0) return FAHREN_ERROR_INVALID_ARGUMENT;
+    int best = 0;
+    float bestv = out[0];
+    for (size_t i = 1; i < n; ++i) {
+        if (out[i] > bestv) { bestv = out[i]; best = (int)i; }
+    }
+    *predicted_class = best;
+    return FAHREN_SUCCESS;
+}
+
+int fahren_predict(FAHRENModel* cm, const char* weights_path, const float* input,
+                   size_t input_dim, int* predicted_class) {
+    if (!cm || !weights_path || !input || !predicted_class) {
+        return FAHREN_ERROR_INVALID_ARGUMENT;
+    }
+    if (!cm->finalized || cm->input_dim != input_dim) {
+        return FAHREN_ERROR_INVALID_ARGUMENT;
+    }
+
+    int rc = fahren_weights_load(cm, weights_path);
+    if (rc != FAHREN_SUCCESS) return rc;
+
+    float** layer_outputs = NULL;
+    size_t* layer_sizes = (size_t*)calloc(cm->layer_count + 1, sizeof(size_t));
+    if (!layer_sizes) return FAHREN_ERROR_OUT_OF_MEMORY;
+
+    if (fahren_forward_cached(cm, input, &layer_outputs, layer_sizes) != 0) {
+        free(layer_sizes);
         return FAHREN_ERROR_PROCESSING_FAILED;
     }
 
-    /* Training loop */
-    for (size_t e = 0; e < epochs; ++e) {
-        double epoch_loss = 0.0;
-        for (size_t s = 0; s < sample_count; ++s) {
-            const float* x = &inputs[s * input_dim];
-            int y = labels[s];
+    rc = argmax_output(layer_outputs[cm->layer_count], layer_sizes[cm->layer_count],
+                       predicted_class);
 
-            float** layer_outputs = NULL;
-            size_t* layer_sizes = (size_t*)calloc(cm->layer_count + 1, sizeof(size_t));
-            if (!layer_sizes) { fclose(f); return FAHREN_ERROR_PROCESSING_FAILED; }
-            if (forward_sample(cm, f, x, &layer_outputs, layer_sizes) != 0) { fclose(f); return FAHREN_ERROR_PROCESSING_FAILED; }
+    fahren_free_layer_outputs(layer_outputs, cm->layer_count);
+    free(layer_sizes);
+    return rc;
+}
 
-            /* Loss: -log p_y */
-            float py = 1e-9f;
-            if (y >= 0 && (size_t)y < layer_sizes[cm->layer_count]) py = layer_outputs[cm->layer_count][y];
-            epoch_loss += -logf(py);
-
-            if (backward_update(cm, f, layer_outputs, layer_sizes, y, learning_rate) != 0) { fclose(f); return FAHREN_ERROR_PROCESSING_FAILED; }
-
-            free_layer_outputs(layer_outputs, cm->layer_count);
-            free(layer_sizes);
-        }
-        #if FAHREN_VERBOSE
-        fprintf(stdout, "Epoch %zu/%zu - loss: %.6f\n", e + 1, epochs, epoch_loss / (double)sample_count);
-        #endif
+int fahren_evaluate(FAHRENModel* cm, const char* weights_path,
+                    const float* inputs, const int* labels,
+                    size_t sample_count, size_t input_dim, float* accuracy_out) {
+    if (!cm || !weights_path || !inputs || !labels || !accuracy_out) {
+        return FAHREN_ERROR_INVALID_ARGUMENT;
+    }
+    if (!cm->finalized || cm->input_dim != input_dim || sample_count == 0) {
+        return FAHREN_ERROR_INVALID_ARGUMENT;
     }
 
-    fflush(f);
-    fclose(f);
+    int rc = fahren_weights_load(cm, weights_path);
+    if (rc != FAHREN_SUCCESS) return rc;
+
+    size_t correct = 0;
+    for (size_t s = 0; s < sample_count; ++s) {
+        int pred = 0;
+        rc = fahren_predict(cm, weights_path, &inputs[s * input_dim], input_dim, &pred);
+        if (rc != FAHREN_SUCCESS) return rc;
+        if (pred == labels[s]) ++correct;
+    }
+
+    *accuracy_out = (float)correct / (float)sample_count;
     return FAHREN_SUCCESS;
 }

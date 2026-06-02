@@ -24,17 +24,10 @@
 #include <errno.h>
 #include <math.h>
 
+#include <fahren/errors.h>
+
 #include "internal.h"
 
-#define FAHREN_FILE_MAGIC 0x46414852u /* 'FAHR' */
-#define FAHREN_FILE_VERSION 1u
-
-typedef struct FahrenFileHeader {
-    uint32_t magic;
-    uint32_t version;
-    uint32_t layer_count;
-    uint32_t input_dim;
-} FahrenFileHeader;
 
 static int write_header(FILE* f, uint32_t input_dim, uint32_t layer_count) {
     FahrenFileHeader h;
@@ -55,7 +48,7 @@ static int read_header(FILE* f, FahrenFileHeader* out) {
 }
 
 /* Public API: add layer with activation */
-void fahren_add_layer(FAHRENModel* cm, int layer_type, ...) {
+void fahren_add_layer(FAHRENModel* cm, int layer_type, int activation, ...) {
     if (!cm || cm->current_layer >= cm->layer_count) {
         #if FAHREN_VERBOSE
         fprintf(stderr, "FAHREN ERROR: Failed to add layer due to invalid layer count or model pointer\n");
@@ -65,9 +58,7 @@ void fahren_add_layer(FAHRENModel* cm, int layer_type, ...) {
 
     size_t idx = cm->current_layer;
     va_list args;
-    va_start(args, layer_type);
-    
-    int activation = va_arg(args, int);
+    va_start(args, activation);
 
     FAHRENModel* sub_model = NULL;
     int density = 0;
@@ -177,10 +168,14 @@ int _fahren_write_model_binary(FAHRENModel* cm, const char* filepath, int input_
 
     FILE* f = fopen(filepath, "wb+");
     if (!f) {
+        char detail[256];
+        snprintf(detail, sizeof(detail), "could not open weights file '%s': %s",
+                 filepath, strerror(errno));
+        fahren_set_last_error(detail);
         #if FAHREN_VERBOSE
-        fprintf(stderr, "FAHREN ERROR: Could not open weights file '%s': %s\n", filepath, strerror(errno));
+        fprintf(stderr, "FAHREN ERROR: %s\n", detail);
         #endif
-        return FAHREN_ERROR_PROCESSING_FAILED;
+        return FAHREN_ERROR_IO;
     }
 
     if (write_header(f, (uint32_t)input_dim, (uint32_t)cm->layer_count) != 0) {
@@ -299,5 +294,6 @@ void fahren_shutdown(FAHRENModel* cm) {
         cm->weights_path = NULL;
     }
 
+    fahren_weights_free_cache(cm);
     free(cm);
 }

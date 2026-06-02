@@ -1,30 +1,32 @@
-# src/CMakeLists.txt
+# src/CMakeLists.txt — FAHREN core library sources
 
-# Minimum required CMake version
-cmake_minimum_required(VERSION 3.15)
-
-# Create a list for all sources
-set(FAHREN_SOURCES)
-
-# Platform-specific sources
-if(UNIX)
-    message(STATUS "Adding POSIX sources")
-    list(APPEND FAHREN_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/posix.c)
-    list(APPEND FAHREN_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/init.c)
-    list(APPEND FAHREN_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/train.c)
-    list(APPEND FAHREN_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/mnist.c)
-endif()
+set(FAHREN_CORE_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/init.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/train.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/weights.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/blas.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/optimizers.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/device.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/easy.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/mnist.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/errors.c
+)
 
 if(WIN32)
-    message(FATAL_ERROR "Windows OS is not supported")
+    message(STATUS "FAHREN: using Windows platform backend (win32.c)")
+    list(APPEND FAHREN_CORE_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/win32.c)
+elseif(UNIX)
+    message(STATUS "FAHREN: using POSIX platform backend (posix.c)")
+    list(APPEND FAHREN_CORE_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/posix.c)
+else()
+    message(WARNING "FAHREN: unknown platform; using POSIX backend as fallback")
+    list(APPEND FAHREN_CORE_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/posix.c)
 endif()
 
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-    message(STATUS "Building for 64-bit")
+    message(STATUS "FAHREN: 64-bit target")
 else()
-    message(STATUS "Building for 32-bit")
+    message(STATUS "FAHREN: 32-bit target")
 endif()
 
-# Export variables to parent CMakeLists
-set(FAHREN_SOURCES ${FAHREN_SOURCES} PARENT_SCOPE)
-set(FAHREN_INCLUDE_DIRS ${FAHREN_INCLUDE_DIRS} PARENT_SCOPE)
+set(FAHREN_SOURCES ${FAHREN_CORE_SOURCES} PARENT_SCOPE)

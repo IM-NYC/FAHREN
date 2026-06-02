@@ -34,8 +34,8 @@ int fahren_train_sequential(FAHRENModel* cm, const float* inputs, size_t sample_
                            const char* weights_path, size_t epochs, float learning_rate);
 
 /* Predict with sequential model */
-int fahren_predict_sequential(FAHRENModel* cm, const float* input, 
-                             size_t input_dim, float* output);
+int fahren_predict_sequential(FAHRENModel* cm, const char* weights_path,
+                             const float* input, size_t input_dim, float* output);
 
 #ifdef __cplusplus
 }

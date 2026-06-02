@@ -1,5 +1,12 @@
 #Own
 .DS_Store
+build/
+out/
+fahren_test_weights.bin
+fahren_mnist_model.bin
+
+# MNIST raw IDX files are large; keep them local (see mnist/.gitkeep)
+mnist/*.idx*-ubyte
 
 # Prerequisites
 *.d

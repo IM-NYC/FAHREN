@@ -48,11 +48,14 @@
  *      fahren_finalize_model_to_file(model, "weights.bin", input_dim);
  * 
  *   4. Train:
- *      fahren_train(model, inputs, num_samples, input_dim,
- *                   labels, num_classes, "weights.bin", epochs, learning_rate);
+ *      FAHRENTrainConfig cfg = fahren_train_config_default(0.01f);
+ *      fahren_train_with_config(model, inputs, num_samples, input_dim,
+ *              labels, num_classes, "weights.bin", epochs, &cfg);
  * 
  *   5. Cleanup:
  *      fahren_shutdown(model);
+ *
+ * Weights file layout: see docs/weights-format.md (magic 'FAHR', version 1).
  */
 #ifndef FAHREN_H
 #define FAHREN_H
@@ -61,8 +64,8 @@
 extern "C" {
 #endif
 
-#include <stdio.h> /* for fprintf in FAHREN_THROW */
-#include <stdlib.h> /* for abort in FAHREN_THROW */
+#include <fahren/errors.h>
+#include <fahren/utils/optimizers.h>
 
 /* Verbosity control: redefine to 1 to enable verbose output (default: quiet) */
 #ifndef FAHREN_VERBOSE
@@ -73,11 +76,6 @@ extern "C" {
 #define FAHREN_VERSION_MAJOR                1
 #define FAHREN_VERSION_MINOR                0
 #define FAHREN_VERSION_PATCH                0
-/* Status codes */
-#define FAHREN_SUCCESS                      0
-#define FAHREN_ERROR_INVALID_ARGUMENT       1
-#define FAHREN_ERROR_NOT_INITIALIZED        2
-#define FAHREN_ERROR_PROCESSING_FAILED      3
 
 #define FAHREN_MODEL_SEQUENTIAL             0
 #define FAHREN_MODEL_LSTM                   1
@@ -92,8 +90,22 @@ extern "C" {
 #define FAHREN_LAYER_ACTIVATION_TANH        2
 #define FAHREN_LAYER_ACTIVATION_SOFTMAX     3
 
+#define FAHREN_DEVICE_CPU                   0
+#define FAHREN_DEVICE_CUDA                  1
+#define FAHREN_DEVICE_DEFAULT               (-1)
+
+#define FAHREN_WEIGHTS_MAGIC                0x46414852u /* 'FAHR' */
+#define FAHREN_WEIGHTS_VERSION              1u
+
 /* Opaque model instance held by library users; keep fields minimal. */
 typedef struct FAHRENModel FAHRENModel;
+
+typedef struct FAHRENTrainConfig {
+    size_t batch_size;           /* default 32 when 0 */
+    float learning_rate;         /* used for SGD when optimizer is NULL */
+    FAHRENOptimizer* optimizer;  /* NULL = vanilla SGD */
+    int device;                  /* FAHREN_DEVICE_* or FAHREN_DEVICE_DEFAULT (-1) */
+} FAHRENTrainConfig;
 
 /* Public API: simple and self-explanatory names. Signatures are intentionally
  * small so users can easily call them from examples. */
@@ -107,7 +119,31 @@ void fahren_shutdown(FAHRENModel* cm);
 /* Add a layer to the model. */
 void fahren_add_layer(FAHRENModel* cm, int layer_type, int activation, ...);
 int fahren_finalize_model_to_file(FAHRENModel* cm, const char* filepath, int input_dim);
-int fahren_train(FAHRENModel* cm, const float* inputs, size_t sample_count, size_t input_dim, const int* labels, size_t num_classes, const char* weights_path, size_t epochs, float learning_rate);
+
+FAHRENTrainConfig fahren_train_config_default(float learning_rate);
+FAHRENTrainConfig fahren_train_config_cuda(float learning_rate);
+int fahren_train_resolve_device(const FAHRENTrainConfig* config);
+int fahren_train_with_config(FAHRENModel* cm, const float* inputs, size_t sample_count,
+                             size_t input_dim, const int* labels, size_t num_classes,
+                             const char* weights_path, size_t epochs,
+                             const FAHRENTrainConfig* config);
+
+int fahren_train(FAHRENModel* cm, const float* inputs, size_t sample_count, size_t input_dim,
+                 const int* labels, size_t num_classes, const char* weights_path,
+                 size_t epochs, float learning_rate);
+
+int fahren_set_device(int device);
+int fahren_get_device(void);
+int fahren_cuda_available(void);
+
+/* Run forward pass and return the argmax class index (requires softmax on the last layer). */
+int fahren_predict(FAHRENModel* cm, const char* weights_path, const float* input,
+                   size_t input_dim, int* predicted_class);
+
+/* Fraction of samples classified correctly in [0, 1]. */
+int fahren_evaluate(FAHRENModel* cm, const char* weights_path,
+                    const float* inputs, const int* labels,
+                    size_t sample_count, size_t input_dim, float* accuracy_out);
 
 /* ============================================================================
  * MNIST DATASET UTILITIES
@@ -122,8 +158,8 @@ int fahren_train(FAHRENModel* cm, const float* inputs, size_t sample_count, size
  *   size_t num_samples = 0;
  * 
  *   int rc = fahren_mnist_load_dataset(
- *       "t10k-images.idx3-ubyte",
- *       "t10k-labels.idx1-ubyte",
+ *       "mnist/t10k-images.idx3-ubyte",
+ *       "mnist/t10k-labels.idx1-ubyte",
  *       &images, &labels, &num_samples
  *   );
  * 
