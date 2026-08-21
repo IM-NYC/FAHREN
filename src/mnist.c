@@ -135,6 +135,10 @@ NOVA_Status nova_mnist_load(const char* images_file, const char* labels_file,
     if (!images_file || !labels_file || !images_out || !labels_out || !num_samples_out)
         return NOVA_ERROR_INVALID_ARGUMENT;
 
+    *images_out = NULL;
+    *labels_out = NULL;
+    *num_samples_out = 0;
+
     uint32_t num_images = 0;
     float* images = load_images(images_file, &num_images);
     if (!images) return NOVA_ERROR_PROCESSING_FAILED;
@@ -161,24 +165,6 @@ NOVA_Status nova_mnist_load(const char* images_file, const char* labels_file,
 void nova_mnist_free(float* images, int* labels) {
     free(images);
     free(labels);
-}
-
-NOVA_Status nova_mnist_load_train(const char* dir, float** images, int** labels,
-                                  size_t* num_out) {
-    if (!dir) return NOVA_ERROR_INVALID_ARGUMENT;
-    char img_path[1024], lbl_path[1024];
-    nova_path_join(img_path, sizeof(img_path), dir, "train-images-idx3-ubyte");
-    nova_path_join(lbl_path, sizeof(lbl_path), dir, "train-labels-idx1-ubyte");
-    return nova_mnist_load(img_path, lbl_path, images, labels, num_out);
-}
-
-NOVA_Status nova_mnist_load_test(const char* dir, float** images, int** labels,
-                                 size_t* num_out) {
-    if (!dir) return NOVA_ERROR_INVALID_ARGUMENT;
-    char img_path[1024], lbl_path[1024];
-    nova_path_join(img_path, sizeof(img_path), dir, "t10k-images-idx3-ubyte");
-    nova_path_join(lbl_path, sizeof(lbl_path), dir, "t10k-labels-idx1-ubyte");
-    return nova_mnist_load(img_path, lbl_path, images, labels, num_out);
 }
 
 NOVA_Status nova_mnist_batch(const float* images, const int* labels,

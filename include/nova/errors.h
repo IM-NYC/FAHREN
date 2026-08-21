@@ -27,7 +27,7 @@ extern "C" {
 typedef int NOVA_Status;
 
 const char* nova_strerror(NOVA_Status status);
-const char* nova_last_error_message(void);
+const char* nova_get_last_error(void);
 void nova_clear_last_error(void);
 void nova_set_last_error(const char* message);
 

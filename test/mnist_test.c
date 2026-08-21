@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 #include <nova/nova.h>
 #include <nova/mnist.h>
@@ -34,6 +35,20 @@ int main(void) {
     const char* dir = getenv("NOVA_MNIST_DIR");
     if (!dir || !*dir) dir = NOVA_MNIST_DIR;
 
+    char train_img_path[1024], train_lbl_path[1024];
+    nova_path_join(train_img_path, sizeof(train_img_path), dir, "t10k-images-idx3-ubyte");
+    nova_path_join(train_lbl_path, sizeof(train_lbl_path), dir, "t10k-labels-idx1-ubyte");
+    char test_img_path[1024], test_lbl_path[1024];
+    nova_path_join(test_img_path, sizeof(test_img_path), dir, "t10k-images-idx3-ubyte");
+    nova_path_join(test_lbl_path, sizeof(test_lbl_path), dir, "t10k-labels-idx1-ubyte");
+    if (access(train_img_path, F_OK) != 0 || access(train_lbl_path, F_OK) != 0 ||
+        access(test_img_path, F_OK) != 0 || access(test_lbl_path, F_OK) != 0) {
+        printf("SKIP: MNIST dataset not found in ");
+        display_dir(dir);
+        printf("\n");
+        return 0;
+    }
+
     float* train_x = NULL;
     int* train_y = NULL;
     size_t train_n = 0;
@@ -41,7 +56,8 @@ int main(void) {
     int* test_y = NULL;
     size_t test_n = 0;
 
-    NOVA_Status rc = nova_mnist_load_train(dir, &train_x, &train_y, &train_n);
+    NOVA_Status rc = nova_mnist_load(train_img_path, train_lbl_path, &train_x, &train_y, &train_n);
+    printf("%s\n", rc == 9 ? "processing failed" : "training set loaded");
     if (rc != NOVA_SUCCESS) {
         printf("SKIP: MNIST training set not found in ");
         display_dir(dir);
@@ -49,7 +65,7 @@ int main(void) {
         return 0;
     }
 
-    rc = nova_mnist_load_test(dir, &test_x, &test_y, &test_n);
+    rc = nova_mnist_load(test_img_path, test_lbl_path, &test_x, &test_y, &test_n);
     if (rc != NOVA_SUCCESS) {
         printf("SKIP: MNIST test set not found in ");
         display_dir(dir);
@@ -62,7 +78,7 @@ int main(void) {
 
     size_t cap = env_size_t("NOVA_MNIST_TRAIN_SAMPLES", 10000);
     if (cap > train_n) cap = train_n;
-    size_t epochs = env_size_t("NOVA_MNIST_EPOCHS", 10);
+    size_t epochs = env_size_t("NOVA_MNIST_EPOCHS", 20);
 
     remove(WEIGHTS);
 

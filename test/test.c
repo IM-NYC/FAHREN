@@ -11,7 +11,7 @@
 static void test_errors(void) {
     NOVA_ASSERT(strcmp(nova_strerror(NOVA_SUCCESS), "success") == 0, "strerror success");
     nova_set_last_error("detail");
-    NOVA_ASSERT(strcmp(nova_last_error_message(), "detail") == 0, "last error");
+    NOVA_ASSERT(strcmp(nova_get_last_error(), "detail") == 0, "last error");
     nova_clear_last_error();
 }
 

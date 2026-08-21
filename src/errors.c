@@ -34,7 +34,7 @@ const char* nova_strerror(NOVA_Status status) {
     return nova_error_table[NOVA_ERROR_UNKNOWN];
 }
 
-const char* nova_last_error_message(void) {
+const char* nova_get_last_error(void) {
     return g_nova_last_error;
 }
 

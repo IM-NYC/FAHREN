@@ -99,7 +99,12 @@ static int cmd_train(const NovaCliConfig* c) {
     int* train_y = NULL;
     size_t train_n = 0;
 
-    NOVA_Status rc = nova_mnist_load_train(c->mnist_dir, &train_x, &train_y, &train_n);
+    const char* mnist_dir = c->mnist_dir;
+    char train_img_path[1024], train_lbl_path[1024];
+    nova_path_join(train_img_path, sizeof(train_img_path), mnist_dir, "train-images-idx3-ubyte");
+    nova_path_join(train_lbl_path, sizeof(train_lbl_path), mnist_dir, "train-labels-idx1-ubyte"); 
+
+    NOVA_Status rc = nova_mnist_load(train_img_path, train_lbl_path, &train_x, &train_y, &train_n);
     if (rc != NOVA_SUCCESS) {
         char dbuf[512];
         snprintf(dbuf, sizeof(dbuf), "%s", c->mnist_dir);
@@ -142,7 +147,13 @@ static int cmd_eval(const NovaCliConfig* c) {
     int* test_y = NULL;
     size_t test_n = 0;
 
-    NOVA_Status rc = nova_mnist_load_test(c->mnist_dir, &test_x, &test_y, &test_n);
+    const char* mnist_dir = c->mnist_dir;
+
+    char test_img_path[1024], test_lbl_path[1024];
+    nova_path_join(test_img_path, sizeof(test_img_path), mnist_dir, "t10k-images-idx3-ubyte");
+    nova_path_join(test_lbl_path, sizeof(test_lbl_path), mnist_dir, "t10k-labels-idx1-ubyte");
+
+    NOVA_Status rc = nova_mnist_load(test_img_path, test_lbl_path, &test_x, &test_y, &test_n);
     if (rc != NOVA_SUCCESS) {
         char dbuf[512];
         snprintf(dbuf, sizeof(dbuf), "%s", c->mnist_dir);
