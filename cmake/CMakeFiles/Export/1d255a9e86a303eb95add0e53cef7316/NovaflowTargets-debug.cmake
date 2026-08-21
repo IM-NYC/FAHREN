@@ -1,0 +1,19 @@
+#----------------------------------------------------------------
+# Generated CMake target import file for configuration "Debug".
+#----------------------------------------------------------------
+
+# Commands may need to know the format version.
+set(CMAKE_IMPORT_FILE_VERSION 1)
+
+# Import target "Novaflow::nova" for configuration "Debug"
+set_property(TARGET Novaflow::nova APPEND PROPERTY IMPORTED_CONFIGURATIONS DEBUG)
+set_target_properties(Novaflow::nova PROPERTIES
+  IMPORTED_IMPLIB_DEBUG "${_IMPORT_PREFIX}/lib/nova.lib"
+  IMPORTED_LOCATION_DEBUG "${_IMPORT_PREFIX}/bin/nova.dll"
+  )
+
+list(APPEND _cmake_import_check_targets Novaflow::nova )
+list(APPEND _cmake_import_check_files_for_Novaflow::nova "${_IMPORT_PREFIX}/lib/nova.lib" "${_IMPORT_PREFIX}/bin/nova.dll" )
+
+# Commands beyond this point should not need to know the version.
+set(CMAKE_IMPORT_FILE_VERSION)

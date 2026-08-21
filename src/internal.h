@@ -1,5 +1,5 @@
-#ifndef INTERNAL_H
-#define INTERNAL_H
+#ifndef NOVA_INTERNAL_H
+#define NOVA_INTERNAL_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -7,109 +7,109 @@
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
+#include <math.h>
 
-#include <fahren/fahren.h>
-#include <fahren/utils/optimizers.h>
+#include <nova/nova.h>
+#include <nova/types.h>
 
-#define FAHREN_FILE_MAGIC  0x46414852u
-#define FAHREN_FILE_VERSION 1u
+#define NOVA_FILE_MAGIC  0x4E4F5641u
+#define NOVA_FILE_VERSION 1u
 
-typedef struct FahrenFileHeader {
+typedef struct NovaFileHeader {
     uint32_t magic;
     uint32_t version;
     uint32_t layer_count;
     uint32_t input_dim;
-} FahrenFileHeader;
+} NovaFileHeader;
 
-typedef struct FAHRENLayer {
-    int density;
-    int layer_type;
-    int activation;
-
-    size_t input_size;
-    size_t output_size;
-
-    long weights_offset;
-    long bias_offset;
-
-    struct FAHRENModel* sub_model;
-    int param1;
-    int param2;
-} FAHRENLayer;
-
-typedef struct FAHRENLayerParams {
-    float* weights;
-    float* biases;
-    float* grad_weights;
-    float* grad_biases;
-    FAHRENOptimizerState* opt_state_w;
-    FAHRENOptimizerState* opt_state_b;
-    size_t weight_count;
-    size_t bias_count;
-} FAHRENLayerParams;
-
-typedef struct FAHRENWeightCache {
-    FAHRENLayerParams* layers;
+typedef struct NOVAWeightCache {
+    NOVALayerParams* layers;
     size_t layer_count;
-    char* filepath;
+    char* dirpath;
     int loaded;
     int dirty;
-} FAHRENWeightCache;
+} NOVAWeightCache;
 
-struct FAHRENModel {
+struct NOVAModel {
     int initialized;
     int finalized;
-
     size_t layer_count;
     int model_type;
-    FAHRENLayer* layers;
+    NOVALayer* layers;
     size_t current_layer;
-
     size_t input_dim;
-    char* weights_path;
-    FAHRENWeightCache* cache;
+    char* path;
+    NOVAWeightCache* cache;
 };
 
-size_t fahren_random_bytes(void* buf, size_t n);
-float  fahren_rand_uniform(float a, float b);
+size_t nova_random_bytes(void* buf, size_t n);
+float  nova_rand_uniform(float a, float b);
 
-int _fahren_write_model_binary(struct FAHRENModel* cm, const char* filepath, int input_dim);
+NOVA_Status nova_weights_load(NOVAModel* model, const char* path);
+NOVA_Status nova_weights_flush(NOVAModel* model, const char* path);
+void nova_weights_free_cache(NOVAModel* model);
 
-int  fahren_weights_load(struct FAHRENModel* cm, const char* filepath);
-int  fahren_weights_flush(struct FAHRENModel* cm, const char* filepath);
-void fahren_weights_free_cache(struct FAHRENModel* cm);
+void nova_gemm(char trans_a, char trans_b, size_t m, size_t n, size_t k,
+               float alpha, const float* A, size_t lda,
+               const float* B, size_t ldb, float beta, float* C, size_t ldc);
 
-void fahren_gemm(float trans_a, float trans_b, size_t m, size_t n, size_t k,
-                 float alpha, const float* A, size_t lda,
-                 const float* B, size_t ldb, float beta, float* C, size_t ldc);
+void nova_zero_grads(NOVAModel* model);
+int  nova_forward(NOVAModel* model, const float* x,
+                  float*** layer_outputs, size_t* layer_out_sizes);
+void nova_free_outputs(float** outs, size_t L);
+int  nova_backward(NOVAModel* model, float** layer_outputs,
+                   size_t* layer_out_sizes, int label);
+void nova_apply_grads(NOVAModel* model, const NOVATrainConfig* config,
+                      size_t batch_size, size_t iteration);
+void nova_ensure_opt_states(NOVAModel* model, const NOVAOptimizer* opt);
 
-void fahren_zero_layer_grads(struct FAHRENModel* cm);
-int  fahren_forward_cached(struct FAHRENModel* cm, const float* x,
-                           float*** layer_outputs, size_t* layer_out_sizes);
-void fahren_free_layer_outputs(float** outs, size_t L);
-int  fahren_backward_accumulate(struct FAHRENModel* cm, float** layer_outputs,
-                                size_t* layer_out_sizes, int label);
-void fahren_apply_layer_gradients(struct FAHRENModel* cm, const FAHRENTrainConfig* config,
-                                  size_t batch_size, size_t iteration);
-void fahren_ensure_optimizer_states(struct FAHRENModel* cm, const FAHRENOptimizer* opt);
+NOVA_Status nova_train_cpu(NOVAModel* model, const float* inputs, size_t sample_count,
+                           size_t input_dim, const int* labels, size_t num_classes,
+                           const char* path, size_t epochs,
+                           const NOVATrainConfig* config);
 
-int fahren_train_cpu(struct FAHRENModel* cm, const float* inputs, size_t sample_count,
-                     size_t input_dim, const int* labels, size_t num_classes,
-                     const char* weights_path, size_t epochs,
-                     const FAHRENTrainConfig* config);
+NOVA_Status nova_write_binary(NOVAModel* model, const char* path, int input_dim);
+int nova_read_header(FILE* f, NovaFileHeader* out);
 
-#ifdef FAHREN_ENABLE_CUDA
-#ifdef __cplusplus
-extern "C" {
+typedef struct {
+    uint32_t input_dim;
+    uint32_t layer_count;
+    uint64_t layer_types_offset;
+    uint64_t weights_offset;
+    uint64_t biases_offset;
+    uint64_t metadata_offset;
+} NovaModelIndex;
+
+NOVA_Status nova_save_multi_file(NOVAModel* model, const char* dirpath);
+NOVA_Status nova_load_multi_file(NOVAModel* model, const char* dirpath);
+
+NOVA_Status nova_hash_file(const char* path, unsigned char hash[32]);
+NOVA_Status nova_verify_file_hash(const char* path, const unsigned char expected[32]);
+void nova_hash_buffer(const unsigned char* data, size_t len, unsigned char hash[32]);
+void nova_hash_to_hex(const unsigned char hash[32], char hex[65]);
+NOVA_Status nova_hash_from_hex(const char hex[65], unsigned char hash[32]);
+
+NOVA_Status nova_quantize_weights(NOVAModel* model, int precision);
+NOVA_Status nova_dequantize_weights(NOVAModel* model);
+
+/* Platform path separator */
+#if defined(_WIN32)
+#  define NOVA_PATH_SEP_CHAR '\\'
+#  define NOVA_PATH_SEP_STR "\\"
+#else
+#  define NOVA_PATH_SEP_CHAR '/'
+#  define NOVA_PATH_SEP_STR "/"
 #endif
-int fahren_train_cuda(struct FAHRENModel* cm, const float* inputs, size_t sample_count,
-                      size_t input_dim, const int* labels, size_t num_classes,
-                      const char* weights_path, size_t epochs,
-                      const FAHRENTrainConfig* config);
-int fahren_cuda_init(void);
-#ifdef __cplusplus
-}
-#endif
+
+NOVA_Status nova_path_join(char* buf, size_t sz, const char* dir, const char* file);
+void nova_path_native(char* path);
+
+#ifdef NOVA_ENABLE_CUDA
+int nova_cuda_init(void);
+NOVA_Status nova_train_cuda(NOVAModel* model, const float* inputs, size_t sample_count,
+                            size_t input_dim, const int* labels, size_t num_classes,
+                            const char* path, size_t epochs,
+                            const NOVATrainConfig* config);
 #endif
 
-#endif /* INTERNAL_H */
+#endif /* NOVA_INTERNAL_H */

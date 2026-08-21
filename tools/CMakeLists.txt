@@ -1,13 +1,13 @@
-add_executable(fahren_cli fahren_cli.c)
-target_link_libraries(fahren_cli PRIVATE Fahren::fahren)
-fahren_apply_compile_flags(fahren_cli)
+add_executable(nova_cli nova_cli.c)
+target_link_libraries(nova_cli PRIVATE Novaflow::nova)
+nova_apply_compile_flags(nova_cli)
 
 if(WIN32 AND BUILD_SHARED_LIBS)
-    add_custom_command(TARGET fahren_cli POST_BUILD
+    add_custom_command(TARGET nova_cli POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            $<TARGET_FILE:fahren>
-            $<TARGET_FILE_DIR:fahren_cli>
+            $<TARGET_FILE:nova>
+            $<TARGET_FILE_DIR:nova_cli>
     )
 endif()
 
-install(TARGETS fahren_cli RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(TARGETS nova_cli RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})

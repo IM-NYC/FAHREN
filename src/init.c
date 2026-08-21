@@ -1,20 +1,3 @@
-/*
- * FAHREN Model Initialization and Layer Management
- * 
- * This module handles:
- * - Model creation and configuration
- * - Layer addition and parameter tracking
- * - Model finalization with random weight initialization
- * - Binary file I/O for weight persistence
- * - Memory management and cleanup
- * 
- * The module uses a file-based weight storage approach:
- * 1. Model finalization writes all layer parameters to a binary file
- * 2. Weights are initialized with Xavier/Glorot uniform distribution
- * 3. Training loads and updates weights from this file
- * 4. File format includes header (magic, version, metadata) + per-layer data
- */
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -24,15 +7,13 @@
 #include <errno.h>
 #include <math.h>
 
-#include <fahren/errors.h>
-
+#include <nova/errors.h>
 #include "internal.h"
 
-
 static int write_header(FILE* f, uint32_t input_dim, uint32_t layer_count) {
-    FahrenFileHeader h;
-    h.magic = FAHREN_FILE_MAGIC;
-    h.version = FAHREN_FILE_VERSION;
+    NovaFileHeader h;
+    h.magic = NOVA_FILE_MAGIC;
+    h.version = NOVA_FILE_VERSION;
     h.layer_count = layer_count;
     h.input_dim = input_dim;
     if (fseek(f, 0, SEEK_SET) != 0) return -1;
@@ -40,165 +21,129 @@ static int write_header(FILE* f, uint32_t input_dim, uint32_t layer_count) {
     return 0;
 }
 
-static int read_header(FILE* f, FahrenFileHeader* out) {
+int nova_read_header(FILE* f, NovaFileHeader* out) {
     if (fseek(f, 0, SEEK_SET) != 0) return -1;
     if (fread(out, sizeof(*out), 1, f) != 1) return -1;
-    if (out->magic != FAHREN_FILE_MAGIC || out->version != FAHREN_FILE_VERSION) return -1;
+    if (out->magic != NOVA_FILE_MAGIC || out->version != NOVA_FILE_VERSION) return -1;
     return 0;
 }
 
-/* Public API: add layer with activation */
-void fahren_add_layer(FAHRENModel* cm, int layer_type, int activation, ...) {
-    if (!cm || cm->current_layer >= cm->layer_count) {
-        #if FAHREN_VERBOSE
-        fprintf(stderr, "FAHREN ERROR: Failed to add layer due to invalid layer count or model pointer\n");
-        #endif
-        abort();
+void nova_model_add_layer(NOVAModel* model, int layer_type, int activation, ...) {
+    if (!model || model->current_layer >= model->layer_count) {
+        nova_set_last_error("invalid model or layer count exceeded");
+        return;
     }
 
-    size_t idx = cm->current_layer;
+    size_t idx = model->current_layer;
     va_list args;
     va_start(args, activation);
 
-    FAHRENModel* sub_model = NULL;
     int density = 0;
     int param1 = 0;
     int param2 = 0;
+    void* sub_model = NULL;
 
-    if (layer_type == FAHREN_LAYER_SUBMODEL) {
-        sub_model = va_arg(args, FAHRENModel*);
-        if (!sub_model) {
-            #if FAHREN_VERBOSE
-            fprintf(stderr, "FAHREN ERROR: SUBMODEL layer requires a valid sub_model pointer\n");
-            #endif
-            abort();
-        }
-        density = 0; /* not used */
-    } else if (layer_type == FAHREN_LAYER_CONVOLUTIONAL) {
-        density = va_arg(args, int);  /* filters */
-        param1 = va_arg(args, int);   /* kernel_size */
-        param2 = va_arg(args, int);   /* stride */
-        if (density <= 0 || param1 <= 0 || param2 <= 0) {
-            #if FAHREN_VERBOSE
-            fprintf(stderr, "FAHREN ERROR: Invalid CONV layer parameters\n");
-            #endif
-            abort();
-        }
-    } else if (layer_type == FAHREN_LAYER_POOLING) {
-        param1 = va_arg(args, int);   /* pool_size */
-        param2 = va_arg(args, int);   /* stride */
-        if (param1 <= 0 || param2 <= 0) {
-            #if FAHREN_VERBOSE
-            fprintf(stderr, "FAHREN ERROR: Invalid POOLING layer parameters\n");
-            #endif
-            abort();
-        }
-    } else { /* DENSE */
-        density = va_arg(args, int);  /* units */
-        if (density <= 0) {
-            #if FAHREN_VERBOSE
-            fprintf(stderr, "FAHREN ERROR: Invalid DENSE units\n");
-            #endif
-            abort();
-        }
+    if (layer_type == NOVA_LAYER_SUBMODEL) {
+        sub_model = va_arg(args, void*);
+        if (!sub_model) { va_end(args); return; }
+    } else if (layer_type == NOVA_LAYER_CONVOLUTIONAL) {
+        density = va_arg(args, int);
+        param1 = va_arg(args, int);
+        param2 = va_arg(args, int);
+    } else if (layer_type == NOVA_LAYER_POOLING) {
+        param1 = va_arg(args, int);
+        param2 = va_arg(args, int);
+    } else {
+        density = va_arg(args, int);
     }
 
     va_end(args);
 
-    cm->layers[idx].density = density;
-    cm->layers[idx].layer_type = layer_type;
-    cm->layers[idx].activation = activation;
-    cm->layers[idx].sub_model = sub_model;
-    cm->layers[idx].param1 = param1;
-    cm->layers[idx].param2 = param2;
-    cm->layers[idx].input_size = 0;   /* set during finalize */
-    cm->layers[idx].output_size = (layer_type == FAHREN_LAYER_DENSE) ? (size_t)density : 0;
-    cm->layers[idx].weights_offset = -1;
-    cm->layers[idx].bias_offset = -1;
-
-    cm->current_layer++;
+    model->layers[idx].layer_type = layer_type;
+    model->layers[idx].activation = activation;
+    model->layers[idx].density = density;
+    model->layers[idx].sub_model = sub_model;
+    model->layers[idx].param1 = param1;
+    model->layers[idx].param2 = param2;
+    model->layers[idx].input_size = 0;
+    model->layers[idx].output_size = (layer_type == NOVA_LAYER_DENSE) ? (size_t)density : 0;
+    model->current_layer++;
 }
 
-FAHRENModel* fahren_create_model(int model_type, int layer_count) {
-    if (layer_count <= 0) {
-        #if FAHREN_VERBOSE
-        fprintf(stderr, "FAHREN ERROR: Failed to create model due to invalid layer count\n");
-        #endif
-        abort();
+NOVAModel* nova_model_create(int model_type, int layer_count) {
+    if (layer_count <= 0 || layer_count > NOVA_MAX_LAYERS) {
+        nova_set_last_error("invalid layer count");
+        return NULL;
     }
 
-    FAHRENModel* cm = (FAHRENModel*)calloc(1, sizeof(FAHRENModel));
-    if (!cm) {
-        #if FAHREN_VERBOSE
-        fprintf(stderr, "FAHREN ERROR: Memory allocation failure for model\n");
-        #endif
-        abort();
+    NOVAModel* model = (NOVAModel*)calloc(1, sizeof(NOVAModel));
+    if (!model) {
+        nova_set_last_error("memory allocation failed for model");
+        return NULL;
     }
 
-    cm->model_type = model_type;
-    cm->layer_count = (size_t)layer_count;
-    cm->layers = (FAHRENLayer*)calloc((size_t)layer_count, sizeof(FAHRENLayer));
-    if (!cm->layers) {
-        free(cm);
-        #if FAHREN_VERBOSE
-        fprintf(stderr, "FAHREN ERROR: Memory allocation failure for layers\n");
-        #endif
-        abort();
+    model->layers = (NOVALayer*)calloc((size_t)layer_count, sizeof(NOVALayer));
+    if (!model->layers) {
+        free(model);
+        nova_set_last_error("memory allocation failed for layers");
+        return NULL;
     }
 
-    cm->initialized = 1;
-    cm->finalized = 0;
-    cm->current_layer = 0;
-    cm->input_dim = 0;
-    cm->weights_path = NULL;
-
-    #if FAHREN_VERBOSE
-    fprintf(stdout, "FAHREN LOG: Created model with capacity for %d layers\n", layer_count);
-    #endif
-
-    return cm;
+    model->model_type = model_type;
+    model->layer_count = (size_t)layer_count;
+    model->initialized = 1;
+    model->finalized = 0;
+    model->current_layer = 0;
+    model->input_dim = 0;
+    model->path = NULL;
+    return model;
 }
 
-/* Internal helper: write the binary model file with random-initialized weights. */
-int _fahren_write_model_binary(FAHRENModel* cm, const char* filepath, int input_dim) {
-    if (!cm || !cm->initialized || cm->current_layer != cm->layer_count) {
-        return FAHREN_ERROR_INVALID_ARGUMENT;
+void nova_model_destroy(NOVAModel* model) {
+    if (!model) return;
+    if (model->layers) {
+        free(model->layers);
+        model->layers = NULL;
     }
-    if (input_dim <= 0) return FAHREN_ERROR_INVALID_ARGUMENT;
+    if (model->path) {
+        free(model->path);
+        model->path = NULL;
+    }
+    nova_weights_free_cache(model);
+    free(model);
+}
 
-    FILE* f = fopen(filepath, "wb+");
+NOVA_Status nova_write_binary(NOVAModel* model, const char* path, int input_dim) {
+    if (!model || !model->initialized || model->current_layer != model->layer_count)
+        return NOVA_ERROR_INVALID_ARGUMENT;
+    if (input_dim <= 0) return NOVA_ERROR_INVALID_ARGUMENT;
+
+    FILE* f = fopen(path, "wb+");
     if (!f) {
         char detail[256];
-        snprintf(detail, sizeof(detail), "could not open weights file '%s': %s",
-                 filepath, strerror(errno));
-        fahren_set_last_error(detail);
-        #if FAHREN_VERBOSE
-        fprintf(stderr, "FAHREN ERROR: %s\n", detail);
-        #endif
-        return FAHREN_ERROR_IO;
+        snprintf(detail, sizeof(detail), "could not open '%s': %s", path, strerror(errno));
+        nova_set_last_error(detail);
+        return NOVA_ERROR_IO;
     }
 
-    if (write_header(f, (uint32_t)input_dim, (uint32_t)cm->layer_count) != 0) {
+    if (write_header(f, (uint32_t)input_dim, (uint32_t)model->layer_count) != 0) {
         fclose(f);
-        return FAHREN_ERROR_PROCESSING_FAILED;
+        return NOVA_ERROR_PROCESSING_FAILED;
     }
 
     size_t in_size = (size_t)input_dim;
 
-    /* Write per-layer metadata and random weights/biases */
-    if (fseek(f, (long)sizeof(FahrenFileHeader), SEEK_SET) != 0) {
+    if (fseek(f, (long)sizeof(NovaFileHeader), SEEK_SET) != 0) {
         fclose(f);
-        return FAHREN_ERROR_PROCESSING_FAILED;
+        return NOVA_ERROR_PROCESSING_FAILED;
     }
 
-    for (size_t i = 0; i < cm->layer_count; ++i) {
-        FAHRENLayer* L = &cm->layers[i];
-        if (L->layer_type != FAHREN_LAYER_DENSE) {
-            #if FAHREN_VERBOSE
-            fprintf(stderr, "FAHREN ERROR: Only DENSE layers are supported in this build for finalize/train.\n");
-            #endif
+    for (size_t i = 0; i < model->layer_count; ++i) {
+        NOVALayer* L = &model->layers[i];
+        if (L->layer_type != NOVA_LAYER_DENSE) {
             fclose(f);
-            return FAHREN_ERROR_INVALID_ARGUMENT;
+            nova_set_last_error("only DENSE layers supported");
+            return NOVA_ERROR_UNSUPPORTED;
         }
 
         L->input_size = in_size;
@@ -211,36 +156,25 @@ int _fahren_write_model_binary(FAHRENModel* cm, const char* filepath, int input_
         meta[3] = (uint32_t)L->output_size;
         if (fwrite(meta, sizeof(uint32_t), 4, f) != 4) {
             fclose(f);
-            return FAHREN_ERROR_PROCESSING_FAILED;
+            return NOVA_ERROR_IO;
         }
 
-        /* Record offsets */
-        L->weights_offset = ftell(f);
         size_t wcount = L->input_size * L->output_size;
-
-        /* Xavier/Glorot uniform */
         float limit = (float)sqrt(6.0f / (float)(L->input_size + L->output_size));
 
-        /* Allocate a small buffer and fill */
         float* wbuf = (float*)malloc(wcount * sizeof(float));
-        if (!wbuf) { fclose(f); return FAHREN_ERROR_PROCESSING_FAILED; }
-        for (size_t k = 0; k < wcount; ++k) {
-            wbuf[k] = fahren_rand_uniform(-limit, limit);
-        }
+        if (!wbuf) { fclose(f); return NOVA_ERROR_OUT_OF_MEMORY; }
+        for (size_t k = 0; k < wcount; ++k)
+            wbuf[k] = nova_rand_uniform(-limit, limit);
         if (fwrite(wbuf, sizeof(float), wcount, f) != wcount) {
-            free(wbuf);
-            fclose(f);
-            return FAHREN_ERROR_PROCESSING_FAILED;
+            free(wbuf); fclose(f); return NOVA_ERROR_IO;
         }
         free(wbuf);
 
-        L->bias_offset = ftell(f);
         float* bbuf = (float*)calloc(L->output_size, sizeof(float));
-        if (!bbuf) { fclose(f); return FAHREN_ERROR_PROCESSING_FAILED; }
+        if (!bbuf) { fclose(f); return NOVA_ERROR_OUT_OF_MEMORY; }
         if (fwrite(bbuf, sizeof(float), L->output_size, f) != L->output_size) {
-            free(bbuf);
-            fclose(f);
-            return FAHREN_ERROR_PROCESSING_FAILED;
+            free(bbuf); fclose(f); return NOVA_ERROR_IO;
         }
         free(bbuf);
 
@@ -249,51 +183,19 @@ int _fahren_write_model_binary(FAHRENModel* cm, const char* filepath, int input_
 
     fflush(f);
     fclose(f);
-    return FAHREN_SUCCESS;
+    return NOVA_SUCCESS;
 }
 
-int fahren_finalize_model_to_file(FAHRENModel* cm, const char* filepath, int input_dim) {
-    if (!cm || !filepath) return FAHREN_ERROR_INVALID_ARGUMENT;
-    int rc = _fahren_write_model_binary(cm, filepath, input_dim);
-    if (rc != FAHREN_SUCCESS) return rc;
+NOVA_Status nova_model_finalize(NOVAModel* model, const char* path, int input_dim) {
+    if (!model || !path) return NOVA_ERROR_INVALID_ARGUMENT;
+    NOVA_Status rc = nova_write_binary(model, path, input_dim);
+    if (rc != NOVA_SUCCESS) return rc;
 
-    cm->finalized = 1;
-    cm->input_dim = (size_t)input_dim;
-    size_t len = strlen(filepath);
-    cm->weights_path = (char*)malloc(len + 1);
-    if (!cm->weights_path) return FAHREN_ERROR_PROCESSING_FAILED;
-    memcpy(cm->weights_path, filepath, len + 1);
-
-    #if FAHREN_VERBOSE
-    fprintf(stdout, "FAHREN LOG: Finalized model to '%s' (input_dim=%d, layers=%zu)\n", filepath, input_dim, cm->layer_count);
-    #endif
-
-    return FAHREN_SUCCESS;
-}
-
-void fahren_shutdown(FAHRENModel* cm) {
-    if (!cm) {
-        #if FAHREN_VERBOSE
-        fprintf(stderr, "FAHREN ERROR: Failed to shutdown model due to invalid model pointer\n");
-        #endif
-        abort();
-    }
-    if (!cm->initialized) {
-        #if FAHREN_VERBOSE
-        fprintf(stderr, "FAHREN ERROR: Model not initialized\n");
-        #endif
-        abort();
-    }
-
-    if (cm->layers) {
-        free(cm->layers);
-        cm->layers = NULL;
-    }
-    if (cm->weights_path) {
-        free(cm->weights_path);
-        cm->weights_path = NULL;
-    }
-
-    fahren_weights_free_cache(cm);
-    free(cm);
+    model->finalized = 1;
+    model->input_dim = (size_t)input_dim;
+    size_t len = strlen(path);
+    model->path = (char*)malloc(len + 1);
+    if (!model->path) return NOVA_ERROR_OUT_OF_MEMORY;
+    memcpy(model->path, path, len + 1);
+    return NOVA_SUCCESS;
 }

@@ -1,0 +1,15 @@
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/CMakeFiles/nova.dir
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/CMakeFiles/RUN_TESTS.dir
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/CMakeFiles/INSTALL.dir
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/CMakeFiles/ALL_BUILD.dir
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/CMakeFiles/ZERO_CHECK.dir
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/src/CMakeFiles/RUN_TESTS.dir
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/src/CMakeFiles/INSTALL.dir
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/tools/CMakeFiles/nova_cli.dir
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/tools/CMakeFiles/RUN_TESTS.dir
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/tools/CMakeFiles/INSTALL.dir
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/test/CMakeFiles/nova_test.dir
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/test/CMakeFiles/nova_mnist_test.dir
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/test/CMakeFiles/run_test.dir
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/test/CMakeFiles/RUN_TESTS.dir
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/test/CMakeFiles/INSTALL.dir

@@ -1,0 +1,14 @@
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/RelWithDebInfo/init.obj
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/RelWithDebInfo/train.obj
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/RelWithDebInfo/weights.obj
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/RelWithDebInfo/blas.obj
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/RelWithDebInfo/device.obj
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/RelWithDebInfo/easy.obj
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/RelWithDebInfo/mnist.obj
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/RelWithDebInfo/errors.obj
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/RelWithDebInfo/hash.obj
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/RelWithDebInfo/quantization.obj
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/RelWithDebInfo/backend.obj
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/RelWithDebInfo/storage.obj
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/RelWithDebInfo/optimizers.obj
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/RelWithDebInfo/win32.obj

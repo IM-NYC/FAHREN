@@ -1,0 +1,10 @@
+{
+	"InstallScripts" : 
+	[
+		"C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/cmake_install.cmake",
+		"C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/src/cmake_install.cmake",
+		"C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/tools/cmake_install.cmake",
+		"C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/test/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

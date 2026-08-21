@@ -1,49 +1,63 @@
-# FAHREN weights file format (version 1)
+# Novaflow model storage format
 
-Binary layout produced by `fahren_finalize_model_to_file()` and updated by training.
-All integers are **little-endian `uint32_t`** on typical x86/x64 hosts. All parameters are **`float` (IEEE 754, 32-bit)**.
+Novaflow supports two storage formats:
 
-## File structure
+1. **Legacy single-file format** (`.bin`) — compatible with FAHREN v1
+2. **Multi-file format** (`.nova` directory) — recommended for production
+
+## Multi-file format
+
+Models are stored in a directory with separate files:
 
 ```
-+------------------+
-| FahrenFileHeader |  16 bytes
-+------------------+
-| Layer 0 block    |
-+------------------+
-| Layer 1 block    |
-+------------------+
-| ...              |
-+------------------+
+model/
+├── architecture.nova     # Layer topology
+├── weights.nova          # Weight tensors
+├── biases.nova           # Bias tensors
+├── metadata.nova         # Model metadata
+├── checksum.sha256       # SHA256 verification
+├── quantization.nova     # Quantization parameters (optional)
+└── training.nova         # Training state
 ```
 
-## Global header (16 bytes)
+### architecture.nova
 
-| Offset | Field         | Description                          |
-|--------|---------------|--------------------------------------|
-| 0      | `magic`       | `0x46414852` (`'FAHR'`)              |
-| 4      | `version`     | `1`                                  |
-| 8      | `layer_count` | Number of dense layers               |
-| 12     | `input_dim`   | Input vector size (e.g. 784)         |
+| Offset | Field         | Description                  |
+|--------|---------------|------------------------------|
+| 0      | `magic`       | `0x4E4F5641` (`'NOVA'`)     |
+| 4      | `version`     | `1`                          |
+| 8      | `layer_count` | Number of layers             |
+| 12     | `input_dim`   | Input vector size            |
+| 16+    | Per-layer meta| 6 × `uint32_t` per layer     |
 
-## Per-layer block (dense only in v1)
+Per-layer metadata (24 bytes each):
+`layer_type`, `activation`, `input_size`, `output_size`, `density`, `param1`
 
-| Section   | Size (bytes)                    | Content |
-|-----------|----------------------------------|---------|
-| Metadata  | 16                               | Four `uint32_t`: `layer_type`, `activation`, `input_size`, `output_size` |
-| Weights   | `input_size * output_size * 4` | Row-major **output × input**: `W[o * input_size + i]` |
-| Biases    | `output_size * 4`                | `b[o]` |
+### weights.nova / biases.nova
 
-## Example: MNIST MLP 784 → 128 → 64 → 10
+Each layer: `uint32_t count` followed by `count` × `float` values.
 
-| Layer | Weights | Biases |
-|-------|---------|--------|
-| 0     | 100,352 floats | 128 floats |
-| 1     | 8,192 floats   | 64 floats  |
-| 2     | 640 floats     | 10 floats  |
+### metadata.nova
 
-## Notes
+Key=value text format (UTF-8):
+```
+framework=Novaflow
+version=1.0.0
+model_type=0
+layer_count=3
+input_dim=784
+precision=fp32
+```
 
-- Only `FAHREN_LAYER_DENSE` layers are serialized in v1.
-- Optimizer state (Adam moments) is kept in RAM only; not stored in v1 files.
-- Training loads the file into an in-memory cache, updates weights each batch/epoch, and flushes back to disk.
+### checksum.sha256
+
+Standard SHA256 checksums (same format as `sha256sum`):
+```
+<hex_hash>  <filename>
+```
+
+## Legacy single-file format (v1)
+
+Single binary file with magic `0x4E4F5641` (`'NOVA'`):
+- Header: 16 bytes (magic, version, layer_count, input_dim)
+- Per-layer blocks: metadata(16 bytes) + weights + biases

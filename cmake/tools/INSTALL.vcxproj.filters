@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\imran\OneDrive\Documents\NovaFlow\cmake\CMakeFiles\d68f14df2a76b62e76ae2fc87cfa207f\INSTALL_force.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{EBDE122B-8864-38FE-A348-A6455124CCF4}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

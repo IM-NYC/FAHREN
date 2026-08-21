@@ -2,10 +2,10 @@
 #include <string.h>
 #include <math.h>
 
-#include <fahren/utils/optimizers.h>
+#include <nova/types.h>
 
-struct FAHRENOptimizerState {
-    FAHRENOptimizerType type;
+struct NOVAOptimizerState {
+    int type;
     size_t count;
     size_t step;
     float* m;
@@ -13,8 +13,10 @@ struct FAHRENOptimizerState {
     float* velocity;
 };
 
-FAHRENOptimizer fahren_optimizer_create(FAHRENOptimizerType type, float lr) {
-    FAHRENOptimizer opt;
+typedef struct NOVAOptimizerState NOVAOptimizerState;
+
+NOVAOptimizer nova_optimizer_create(int type, float lr) {
+    NOVAOptimizer opt;
     memset(&opt, 0, sizeof(opt));
     opt.type = type;
     opt.learning_rate = lr;
@@ -26,30 +28,28 @@ FAHRENOptimizer fahren_optimizer_create(FAHRENOptimizerType type, float lr) {
     return opt;
 }
 
-FAHRENOptimizerState* fahren_optimizer_state_create(const FAHRENOptimizer* optimizer,
-                                                    size_t param_count) {
+NOVAOptimizerState* nova_optimizer_state_create(const NOVAOptimizer* optimizer,
+                                                size_t param_count) {
     if (!optimizer || param_count == 0) return NULL;
 
-    FAHRENOptimizerState* st = (FAHRENOptimizerState*)calloc(1, sizeof(*st));
+    NOVAOptimizerState* st = (NOVAOptimizerState*)calloc(1, sizeof(*st));
     if (!st) return NULL;
 
     st->type = optimizer->type;
     st->count = param_count;
     st->step = 0;
 
-    if (optimizer->type == FAHREN_OPTIMIZER_MOMENTUM) {
+    if (optimizer->type == NOVA_OPTIMIZER_MOMENTUM) {
         st->velocity = (float*)calloc(param_count, sizeof(float));
         if (!st->velocity) { free(st); return NULL; }
-    } else if (optimizer->type == FAHREN_OPTIMIZER_ADAM) {
+    } else if (optimizer->type == NOVA_OPTIMIZER_ADAM) {
         st->m = (float*)calloc(param_count, sizeof(float));
         st->v = (float*)calloc(param_count, sizeof(float));
         if (!st->m || !st->v) {
-            free(st->m);
-            free(st->v);
-            free(st);
+            free(st->m); free(st->v); free(st);
             return NULL;
         }
-    } else if (optimizer->type == FAHREN_OPTIMIZER_RMSPROP) {
+    } else if (optimizer->type == NOVA_OPTIMIZER_RMSPROP) {
         st->v = (float*)calloc(param_count, sizeof(float));
         if (!st->v) { free(st); return NULL; }
     }
@@ -57,7 +57,7 @@ FAHRENOptimizerState* fahren_optimizer_state_create(const FAHRENOptimizer* optim
     return st;
 }
 
-void fahren_optimizer_state_free(FAHRENOptimizerState* state) {
+void nova_optimizer_state_free(NOVAOptimizerState* state) {
     if (!state) return;
     free(state->m);
     free(state->v);
@@ -65,10 +65,10 @@ void fahren_optimizer_state_free(FAHRENOptimizerState* state) {
     free(state);
 }
 
-void fahren_optimizer_update(FAHRENOptimizer* optimizer,
-                             FAHRENOptimizerState* state,
-                             float* params, const float* gradients,
-                             size_t count, size_t iteration) {
+void nova_optimizer_update(NOVAOptimizer* optimizer,
+                           NOVAOptimizerState* state,
+                           float* params, const float* gradients,
+                           size_t count, size_t iteration) {
     if (!optimizer || !params || !gradients || count == 0) return;
     (void)iteration;
 
@@ -76,13 +76,12 @@ void fahren_optimizer_update(FAHRENOptimizer* optimizer,
     size_t i;
 
     switch (optimizer->type) {
-        case FAHREN_OPTIMIZER_SGD:
-            for (i = 0; i < count; ++i) {
+        case NOVA_OPTIMIZER_SGD:
+            for (i = 0; i < count; ++i)
                 params[i] -= lr * gradients[i];
-            }
             break;
 
-        case FAHREN_OPTIMIZER_MOMENTUM:
+        case NOVA_OPTIMIZER_MOMENTUM:
             if (!state || !state->velocity) {
                 for (i = 0; i < count; ++i) params[i] -= lr * gradients[i];
                 break;
@@ -93,7 +92,7 @@ void fahren_optimizer_update(FAHRENOptimizer* optimizer,
             }
             break;
 
-        case FAHREN_OPTIMIZER_ADAM:
+        case NOVA_OPTIMIZER_ADAM:
             if (!state || !state->m || !state->v) {
                 for (i = 0; i < count; ++i) params[i] -= lr * gradients[i];
                 break;
@@ -115,7 +114,7 @@ void fahren_optimizer_update(FAHRENOptimizer* optimizer,
             }
             break;
 
-        case FAHREN_OPTIMIZER_RMSPROP:
+        case NOVA_OPTIMIZER_RMSPROP:
             if (!state || !state->v) {
                 for (i = 0; i < count; ++i) params[i] -= lr * gradients[i];
                 break;

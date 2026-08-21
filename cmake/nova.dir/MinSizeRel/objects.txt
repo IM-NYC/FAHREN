@@ -1,0 +1,14 @@
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/MinSizeRel/init.obj
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/MinSizeRel/train.obj
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/MinSizeRel/weights.obj
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/MinSizeRel/blas.obj
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/MinSizeRel/device.obj
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/MinSizeRel/easy.obj
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/MinSizeRel/mnist.obj
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/MinSizeRel/errors.obj
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/MinSizeRel/hash.obj
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/MinSizeRel/quantization.obj
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/MinSizeRel/backend.obj
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/MinSizeRel/storage.obj
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/MinSizeRel/optimizers.obj
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/MinSizeRel/win32.obj

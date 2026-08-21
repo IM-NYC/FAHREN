@@ -1,41 +1,36 @@
-# FAHREN — Fast and Readable Neural Network Library
+# Novaflow — Neural Network Framework
 # Cross-platform CMake (Windows, Linux, macOS)
 
 cmake_minimum_required(VERSION 3.18)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
-include(FAHRENOptions)
+include(NovaOptions)
 
-if(FAHREN_ENABLE_CUDA)
-    project(Fahren
-        VERSION 1.0.0
-        DESCRIPTION "C neural network library for building and training models"
-        LANGUAGES C CUDA
-    )
-else()
-    project(Fahren
-        VERSION 1.0.0
-        DESCRIPTION "C neural network library for building and training models"
-        LANGUAGES C
-    )
-endif()
+project(Novaflow
+    VERSION 1.0.0
+    DESCRIPTION "C neural network framework for building and training models"
+    LANGUAGES C
+)
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
-include(FAHRENCompileFlags)
+include(NovaCompileFlags)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CUDA_STANDARD 17)
+set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type (Debug, Release, RelWithDebInfo, MinSizeRel)" FORCE)
     set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Debug Release RelWithDebInfo MinSizeRel)
 endif()
 
-# Honor BUILD_SHARED_LIBS from option when set
-if(FAHREN_BUILD_SHARED_LIBS)
+if(NOVA_BUILD_SHARED_LIBS)
     set(BUILD_SHARED_LIBS ON CACHE BOOL "" FORCE)
 else()
     set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
@@ -43,149 +38,129 @@ endif()
 
 add_subdirectory(src)
 
-# ---------------------------------------------------------------------------
-# Library target
-# ---------------------------------------------------------------------------
-add_library(fahren ${FAHREN_SOURCES})
-add_library(Fahren::fahren ALIAS fahren)
+add_library(nova ${NOVA_SOURCES})
+add_library(Novaflow::nova ALIAS nova)
 
-set_target_properties(fahren PROPERTIES
+set_target_properties(nova PROPERTIES
     VERSION ${PROJECT_VERSION}
     SOVERSION ${PROJECT_VERSION_MAJOR}
-    OUTPUT_NAME fahren
+    OUTPUT_NAME nova
     POSITION_INDEPENDENT_CODE ON
     C_STANDARD 11
     C_STANDARD_REQUIRED ON
 )
 
-# MSVC: shared builds need exported symbols or no import .lib is produced for consumers.
 if(WIN32 AND BUILD_SHARED_LIBS)
-    set_target_properties(fahren PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+    set_target_properties(nova PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 endif()
 
-target_include_directories(fahren
+target_include_directories(nova
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
-fahren_apply_compile_flags(fahren)
+nova_apply_compile_flags(nova)
 
 find_package(Threads REQUIRED)
-target_link_libraries(fahren PUBLIC Threads::Threads)
+target_link_libraries(nova PUBLIC Threads::Threads)
 
 if(UNIX AND NOT APPLE)
-    target_link_libraries(fahren PUBLIC m)
+    target_link_libraries(nova PUBLIC m)
 elseif(UNIX AND APPLE)
-    target_link_libraries(fahren PUBLIC m)
+    target_link_libraries(nova PUBLIC m)
 endif()
 
 if(WIN32)
-    target_link_libraries(fahren PRIVATE bcrypt)
+    target_link_libraries(nova PRIVATE bcrypt)
 endif()
 
-if(FAHREN_ENABLE_CUDA)
-    set(FAHREN_ENABLE_ADDONS ON CACHE BOOL "" FORCE)
-endif()
-
-if(FAHREN_ENABLE_OPENBLAS)
+if(NOVA_ENABLE_OPENBLAS)
     find_package(OpenBLAS)
     if(OpenBLAS_FOUND)
-        target_compile_definitions(fahren PRIVATE FAHREN_USE_OPENBLAS)
-        target_link_libraries(fahren PRIVATE OpenBLAS::OpenBLAS)
-        message(STATUS "FAHREN: OpenBLAS enabled")
+        target_compile_definitions(nova PRIVATE NOVA_USE_OPENBLAS)
+        target_link_libraries(nova PRIVATE OpenBLAS::OpenBLAS)
+        message(STATUS "Novaflow: OpenBLAS enabled")
     else()
-        message(WARNING "FAHREN_ENABLE_OPENBLAS is ON but OpenBLAS was not found")
+        message(WARNING "NOVA_ENABLE_OPENBLAS is ON but OpenBLAS was not found")
     endif()
 endif()
 
-if(FAHREN_ENABLE_OPENMP)
+if(NOVA_ENABLE_OPENMP)
     find_package(OpenMP)
     if(OpenMP_C_FOUND)
-        target_link_libraries(fahren PRIVATE OpenMP::OpenMP_C)
-        message(STATUS "FAHREN: OpenMP enabled")
+        target_link_libraries(nova PRIVATE OpenMP::OpenMP_C)
+        message(STATUS "Novaflow: OpenMP enabled")
     endif()
 endif()
 
-# Optional add-ons hook (CUDA, etc.)
-if(FAHREN_ENABLE_ADDONS)
-    include(Addons)
+if(NOVA_ENABLE_CUDA)
+    enable_language(CUDA)
+    add_subdirectory(addons/cuda)
+    message(STATUS "Novaflow: CUDA enabled")
 endif()
 
-if(FAHREN_BUILD_TOOLS)
+if(NOVA_BUILD_TOOLS)
     add_subdirectory(tools)
 endif()
 
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
-if(FAHREN_BUILD_TESTS)
+if(NOVA_BUILD_TESTS)
     enable_testing()
     add_subdirectory(test)
 endif()
 
-# ---------------------------------------------------------------------------
-# Examples (future)
-# ---------------------------------------------------------------------------
-if(FAHREN_BUILD_EXAMPLES AND EXISTS "${CMAKE_SOURCE_DIR}/examples/CMakeLists.txt")
+if(NOVA_BUILD_EXAMPLES AND EXISTS "${CMAKE_SOURCE_DIR}/examples/CMakeLists.txt")
     add_subdirectory(examples)
 endif()
 
-# ---------------------------------------------------------------------------
-# Install + package config (for find_package(Fahren))
-# ---------------------------------------------------------------------------
-if(FAHREN_INSTALL)
-    install(TARGETS fahren
-        EXPORT FahrenTargets
+if(NOVA_INSTALL)
+    install(TARGETS nova
+        EXPORT NovaTargets
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     )
 
-    install(DIRECTORY include/fahren
+    install(DIRECTORY include/nova
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
         FILES_MATCHING PATTERN "*.h"
     )
-    install(FILES docs/weights-format.md DESTINATION ${CMAKE_INSTALL_DOCDIR} OPTIONAL)
 
-    install(EXPORT FahrenTargets
-        FILE FahrenTargets.cmake
-        NAMESPACE Fahren::
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Fahren
+    install(EXPORT NovaTargets
+        FILE NovaflowTargets.cmake
+        NAMESPACE Novaflow::
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Novaflow
     )
 
     configure_package_config_file(
-        "${CMAKE_CURRENT_SOURCE_DIR}/cmake/FahrenConfig.cmake.in"
-        "${CMAKE_CURRENT_BINARY_DIR}/FahrenConfig.cmake"
-        INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Fahren
+        "${CMAKE_CURRENT_SOURCE_DIR}/cmake/NovaConfig.cmake.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/NovaflowConfig.cmake"
+        INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Novaflow
     )
 
     write_basic_package_version_file(
-        "${CMAKE_CURRENT_BINARY_DIR}/FahrenConfigVersion.cmake"
+        "${CMAKE_CURRENT_BINARY_DIR}/NovaflowConfigVersion.cmake"
         VERSION ${PROJECT_VERSION}
         COMPATIBILITY SameMajorVersion
     )
 
     install(FILES
-        "${CMAKE_CURRENT_BINARY_DIR}/FahrenConfig.cmake"
-        "${CMAKE_CURRENT_BINARY_DIR}/FahrenConfigVersion.cmake"
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Fahren
+        "${CMAKE_CURRENT_BINARY_DIR}/NovaflowConfig.cmake"
+        "${CMAKE_CURRENT_BINARY_DIR}/NovaflowConfigVersion.cmake"
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Novaflow
     )
 endif()
 
-# ---------------------------------------------------------------------------
-# Summary
-# ---------------------------------------------------------------------------
 message(STATUS "")
-message(STATUS "FAHREN ${PROJECT_VERSION} configuration:")
+message(STATUS "Novaflow ${PROJECT_VERSION} configuration:")
 message(STATUS "  Build type:     ${CMAKE_BUILD_TYPE}")
 message(STATUS "  Shared libs:    ${BUILD_SHARED_LIBS}")
-message(STATUS "  Tests:          ${FAHREN_BUILD_TESTS}")
-message(STATUS "  Verbose API:    ${FAHREN_ENABLE_VERBOSE}")
-message(STATUS "  Add-ons:        ${FAHREN_ENABLE_ADDONS}")
-message(STATUS "  CUDA:           ${FAHREN_ENABLE_CUDA}")
-message(STATUS "  OpenBLAS:       ${FAHREN_ENABLE_OPENBLAS}")
-message(STATUS "  Install rules:  ${FAHREN_INSTALL}")
+message(STATUS "  Tests:          ${NOVA_BUILD_TESTS}")
+message(STATUS "  Tools:          ${NOVA_BUILD_TOOLS}")
+message(STATUS "  OpenBLAS:       ${NOVA_ENABLE_OPENBLAS}")
+message(STATUS "  OpenMP:         ${NOVA_ENABLE_OPENMP}")
+message(STATUS "  CUDA:           ${NOVA_ENABLE_CUDA}")
+message(STATUS "  Install rules:  ${NOVA_INSTALL}")
 if(WIN32)
     message(STATUS "  Platform:       Windows")
 elseif(APPLE)

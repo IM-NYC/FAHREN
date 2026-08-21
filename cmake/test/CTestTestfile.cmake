@@ -1,0 +1,36 @@
+# CMake generated Testfile for 
+# Source directory: C:/Users/imran/OneDrive/Documents/NovaFlow/test
+# Build directory: C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/test
+# 
+# This file includes the relevant testing commands required for 
+# testing this directory and lists subdirectories to be tested as well.
+if(CTEST_CONFIGURATION_TYPE MATCHES "^([Dd][Ee][Bb][Uu][Gg])$")
+  add_test(nova_smoke "C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/test/Debug/nova_test.exe")
+  set_tests_properties(nova_smoke PROPERTIES  WORKING_DIRECTORY "C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/test/Debug" _BACKTRACE_TRIPLES "C:/Users/imran/OneDrive/Documents/NovaFlow/test/CMakeLists.txt;27;add_test;C:/Users/imran/OneDrive/Documents/NovaFlow/test/CMakeLists.txt;0;")
+elseif(CTEST_CONFIGURATION_TYPE MATCHES "^([Rr][Ee][Ll][Ee][Aa][Ss][Ee])$")
+  add_test(nova_smoke "C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/test/Release/nova_test.exe")
+  set_tests_properties(nova_smoke PROPERTIES  WORKING_DIRECTORY "C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/test/Release" _BACKTRACE_TRIPLES "C:/Users/imran/OneDrive/Documents/NovaFlow/test/CMakeLists.txt;27;add_test;C:/Users/imran/OneDrive/Documents/NovaFlow/test/CMakeLists.txt;0;")
+elseif(CTEST_CONFIGURATION_TYPE MATCHES "^([Mm][Ii][Nn][Ss][Ii][Zz][Ee][Rr][Ee][Ll])$")
+  add_test(nova_smoke "C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/test/MinSizeRel/nova_test.exe")
+  set_tests_properties(nova_smoke PROPERTIES  WORKING_DIRECTORY "C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/test/MinSizeRel" _BACKTRACE_TRIPLES "C:/Users/imran/OneDrive/Documents/NovaFlow/test/CMakeLists.txt;27;add_test;C:/Users/imran/OneDrive/Documents/NovaFlow/test/CMakeLists.txt;0;")
+elseif(CTEST_CONFIGURATION_TYPE MATCHES "^([Rr][Ee][Ll][Ww][Ii][Tt][Hh][Dd][Ee][Bb][Ii][Nn][Ff][Oo])$")
+  add_test(nova_smoke "C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/test/RelWithDebInfo/nova_test.exe")
+  set_tests_properties(nova_smoke PROPERTIES  WORKING_DIRECTORY "C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/test/RelWithDebInfo" _BACKTRACE_TRIPLES "C:/Users/imran/OneDrive/Documents/NovaFlow/test/CMakeLists.txt;27;add_test;C:/Users/imran/OneDrive/Documents/NovaFlow/test/CMakeLists.txt;0;")
+else()
+  add_test(nova_smoke NOT_AVAILABLE)
+endif()
+if(CTEST_CONFIGURATION_TYPE MATCHES "^([Dd][Ee][Bb][Uu][Gg])$")
+  add_test(nova_mnist "C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/test/Debug/nova_mnist_test.exe")
+  set_tests_properties(nova_mnist PROPERTIES  ENVIRONMENT "NOVA_MNIST_DIR=C:/Users/imran/OneDrive/Documents/NovaFlow/mnist" WORKING_DIRECTORY "C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/test/Debug" _BACKTRACE_TRIPLES "C:/Users/imran/OneDrive/Documents/NovaFlow/test/CMakeLists.txt;30;add_test;C:/Users/imran/OneDrive/Documents/NovaFlow/test/CMakeLists.txt;0;")
+elseif(CTEST_CONFIGURATION_TYPE MATCHES "^([Rr][Ee][Ll][Ee][Aa][Ss][Ee])$")
+  add_test(nova_mnist "C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/test/Release/nova_mnist_test.exe")
+  set_tests_properties(nova_mnist PROPERTIES  ENVIRONMENT "NOVA_MNIST_DIR=C:/Users/imran/OneDrive/Documents/NovaFlow/mnist" WORKING_DIRECTORY "C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/test/Release" _BACKTRACE_TRIPLES "C:/Users/imran/OneDrive/Documents/NovaFlow/test/CMakeLists.txt;30;add_test;C:/Users/imran/OneDrive/Documents/NovaFlow/test/CMakeLists.txt;0;")
+elseif(CTEST_CONFIGURATION_TYPE MATCHES "^([Mm][Ii][Nn][Ss][Ii][Zz][Ee][Rr][Ee][Ll])$")
+  add_test(nova_mnist "C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/test/MinSizeRel/nova_mnist_test.exe")
+  set_tests_properties(nova_mnist PROPERTIES  ENVIRONMENT "NOVA_MNIST_DIR=C:/Users/imran/OneDrive/Documents/NovaFlow/mnist" WORKING_DIRECTORY "C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/test/MinSizeRel" _BACKTRACE_TRIPLES "C:/Users/imran/OneDrive/Documents/NovaFlow/test/CMakeLists.txt;30;add_test;C:/Users/imran/OneDrive/Documents/NovaFlow/test/CMakeLists.txt;0;")
+elseif(CTEST_CONFIGURATION_TYPE MATCHES "^([Rr][Ee][Ll][Ww][Ii][Tt][Hh][Dd][Ee][Bb][Ii][Nn][Ff][Oo])$")
+  add_test(nova_mnist "C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/test/RelWithDebInfo/nova_mnist_test.exe")
+  set_tests_properties(nova_mnist PROPERTIES  ENVIRONMENT "NOVA_MNIST_DIR=C:/Users/imran/OneDrive/Documents/NovaFlow/mnist" WORKING_DIRECTORY "C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/test/RelWithDebInfo" _BACKTRACE_TRIPLES "C:/Users/imran/OneDrive/Documents/NovaFlow/test/CMakeLists.txt;30;add_test;C:/Users/imran/OneDrive/Documents/NovaFlow/test/CMakeLists.txt;0;")
+else()
+  add_test(nova_mnist NOT_AVAILABLE)
+endif()

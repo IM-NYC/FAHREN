@@ -1,0 +1,14 @@
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/Debug/init.obj
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/Debug/train.obj
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/Debug/weights.obj
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/Debug/blas.obj
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/Debug/device.obj
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/Debug/easy.obj
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/Debug/mnist.obj
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/Debug/errors.obj
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/Debug/hash.obj
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/Debug/quantization.obj
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/Debug/backend.obj
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/Debug/storage.obj
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/Debug/optimizers.obj
+C:/Users/imran/OneDrive/Documents/NovaFlow/cmake/nova.dir/Debug/win32.obj
